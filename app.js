@@ -88,7 +88,7 @@ function summaryCellHTML(type, label, value, soglia, isMin) {
     <div class="summary-cell ${type} ${over ? "over-limit" : ""}">
       <div class="label">${label}</div>
       <div class="value">${formatEUR(value)}</div>
-      <div class="sub">${subLabel}: ${formatEUR(soglia)}</div>
+      <div class="sub">${subLabel}:<br />${formatEUR(soglia)}</div>
       <div class="progress-track">
         <div class="progress-fill ${over ? "over" : ""}" style="width:${pct}%; background:${COLORS[type]}"></div>
       </div>
