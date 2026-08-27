@@ -139,7 +139,11 @@
   <section id="view-analisi" class="view hidden">
 
     <div class="card">
-      <h2>Panoramica · <span id="analisi-overview-year"></span></h2>
+      <div class="month-switcher">
+        <button id="btn-analisi-prev-year" class="icon-btn" aria-label="Anno precedente">‹</button>
+        <div class="month-label">Panoramica <span id="analisi-overview-year">—</span></div>
+        <button id="btn-analisi-next-year" class="icon-btn" aria-label="Anno successivo">›</button>
+      </div>
       <div class="summary-grid analisi-kpi-grid" id="analisi-overview-year-grid"></div>
     </div>
 
@@ -253,14 +257,11 @@
         <span class="chevron">⌄</span>
       </div>
       <div class="collapsible-body">
-        <p class="hint">Le spese che aggiungi qui vengono inserite automaticamente ogni volta che apri un mese
-          che non avevi ancora aperto prima (i mesi già esistenti non vengono toccati in automatico —
-          usa il pulsante qui sotto per aggiungerle anche a quelli).</p>
+        <p class="hint">Le spese che aggiungi qui vengono inserite automaticamente in ogni mese, anche in
+          quelli già aperti in precedenza: creare o modificare una spesa fissa aggiorna subito anche i
+          mesi già esistenti.</p>
         <ul class="item-list" id="list-recurring"></ul>
         <button class="add-btn accent" id="btn-add-recurring">+ Aggiungi spesa fissa</button>
-        <div class="btn-row" style="margin-top:12px">
-          <button id="btn-apply-recurring" class="btn secondary">Applica a tutti i mesi già aperti</button>
-        </div>
       </div>
     </div>
 

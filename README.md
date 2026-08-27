@@ -31,7 +31,8 @@ da capire, modificare e pubblicare gratis su GitHub Pages.
   personalizzabili, export/import di un backup JSON, reset dati.
 - **Spese fisse mensili**: configura una volta le spese ricorrenti (mutuo,
   abbonamenti, ecc.) scegliendo se sono necessarie, svago o investimenti:
-  vengono inserite automaticamente in ogni mese aperto per la prima volta.
+  vengono inserite automaticamente in ogni mese, sia in quelli aperti per la
+  prima volta sia in quelli già esistenti.
 - **Spese rateali**: per un acquisto pagato in più mensilità, imposta
   importo, numero di rate e mese di partenza — vengono inserite da sole,
   una al mese con l'indicazione "n/totale", e si fermano da sole alla fine.

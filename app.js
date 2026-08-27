@@ -410,8 +410,15 @@ function initRecurringModal() {
     } else {
       Store.addRecurring({ bucket, amount, note, category });
     }
+    // Applica subito le spese fisse mancanti a tutti i mesi già aperti, come già
+    // succede per le rate: senza questo, aggiungere/modificare una spesa fissa
+    // dopo aver già aperto il mese corrente la lascerebbe fuori dai dati di quel
+    // mese (e quindi anche dalle card che li leggono, es. "Spese fisse/rate" in
+    // Analisi) finché non si apre un mese nuovo.
+    Store.applyMissingRecurringToAllMonths();
     closeRecurringModal();
     renderRecurringList();
+    renderRiepilogo();
   });
 
   document.getElementById("recurring-delete").addEventListener("click", () => {
@@ -420,12 +427,6 @@ function initRecurringModal() {
     Store.removeRecurring(recurringModalState.itemId);
     closeRecurringModal();
     renderRecurringList();
-  });
-
-  document.getElementById("btn-apply-recurring").addEventListener("click", () => {
-    const added = Store.applyMissingRecurringToAllMonths();
-    alert(added === 0 ? "Tutte le spese fisse sono già presenti in tutti i mesi già aperti." : `Aggiunte ${added} voci mancanti nei mesi già aperti.`);
-    renderRiepilogo();
   });
 }
 
@@ -746,6 +747,17 @@ function average(arr) {
   return arr.reduce((a, b) => a + b, 0) / arr.length;
 }
 
+/* Mediana: a differenza della media, non si lascia trascinare da un paio di
+ * transazioni molto grandi o molto piccole — utile per capire "quanto vale
+ * di solito" una voce quando il set filtrato contiene importi molto diversi
+ * tra loro (es. tante spese piccole più una assicurazione da 586 €). */
+function median(arr) {
+  if (arr.length === 0) return 0;
+  const sorted = arr.slice().sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
 /* ---------------------------------------------------------------- */
 /* ANALISI                                                            */
 /* ---------------------------------------------------------------- */
@@ -851,14 +863,20 @@ function monthOrEmpty(key) {
   return Store.data.months[key] || emptyMonth();
 }
 
-/* Calcola tutte le "card KPI" della Panoramica: alcune sull'anno corrente
- * (da gennaio al mese reale in corso, mesi futuri esclusi), altre sul solo
- * mese corrente. Sono indipendenti dai filtri della sezione sottostante. */
-function computeAnalisiOverview() {
+/* Calcola tutte le "card KPI" della Panoramica: alcune sull'anno selezionato
+ * con le frecce (da gennaio a dicembre se è un anno passato, da gennaio al
+ * mese reale in corso se è l'anno corrente), altre sul solo mese corrente
+ * reale (non cambiano cambiando anno). Sono indipendenti dai filtri della
+ * sezione sottostante. */
+function computeAnalisiOverview(selectedYear) {
   const settings = Store.data.settings;
-  const year = new Date().getFullYear();
+  const year = selectedYear;
   const realCurrentKey = monthKey(new Date());
-  const yearKeys = Store.monthsSortedKeys().filter((k) => k.startsWith(String(year)) && k <= realCurrentKey);
+  const realCurrentYear = new Date().getFullYear();
+  const yearKeys = Store.monthsSortedKeys().filter((k) => {
+    if (!k.startsWith(String(year))) return false;
+    return year === realCurrentYear ? k <= realCurrentKey : true;
+  });
   const perMonth = yearKeys.map((k) => ({ key: k, stats: computeMonthStats(Store.data.months[k], settings) }));
 
   const saldoNetto = perMonth.reduce((acc, m) => acc + m.stats.risparmi, 0);
@@ -899,7 +917,12 @@ function computeAnalisiOverview() {
 
   const totUsciteAnno = perMonth.reduce((acc, m) => acc + m.stats.totaleNecessarie + m.stats.totaleSvago, 0);
   const startOfYear = new Date(year, 0, 1);
-  const daysElapsed = Math.floor((new Date() - startOfYear) / 86400000) + 1;
+  // Per l'anno corrente conta i giorni trascorsi fino ad oggi; per un anno
+  // passato conta tutti i suoi giorni (365 o 366), altrimenti la media
+  // uscirebbe artificialmente alta (dividendo per i giorni "di oggi" invece
+  // che per l'intero anno già concluso).
+  const endOfYear = year === realCurrentYear ? new Date() : new Date(year, 11, 31);
+  const daysElapsed = Math.floor((endOfYear - startOfYear) / 86400000) + 1;
   const spesaGiornaliera = daysElapsed > 0 ? totUsciteAnno / daysElapsed : 0;
 
   const totaleInvestito = perMonth.reduce((acc, m) => acc + m.stats.investimenti, 0);
@@ -932,9 +955,13 @@ function computeAnalisiOverview() {
   };
 }
 
+let analisiOverviewYear = null;
+
 function renderAnalisiOverview() {
-  const o = computeAnalisiOverview();
+  if (analisiOverviewYear === null) analisiOverviewYear = new Date().getFullYear();
+  const o = computeAnalisiOverview(analisiOverviewYear);
   document.getElementById("analisi-overview-year").textContent = String(o.year);
+  document.getElementById("btn-analisi-next-year").disabled = analisiOverviewYear >= new Date().getFullYear();
 
   document.getElementById("analisi-overview-year-grid").innerHTML =
     analisiKpiCellHTML("Saldo netto", formatEUR(o.saldoNetto), { tone: o.saldoNetto >= 0 ? "good" : "bad" }) +
@@ -1029,6 +1056,7 @@ function renderAnalisi() {
   const totale = amounts.reduce((a, b) => a + b, 0);
   const count = items.length;
   const media = count > 0 ? totale / count : 0;
+  const mediana = median(amounts);
   const max = count > 0 ? Math.max(...amounts) : 0;
   const min = count > 0 ? Math.min(...amounts) : 0;
 
@@ -1036,6 +1064,7 @@ function renderAnalisi() {
   document.getElementById("analisi-kpi-grid").innerHTML =
     analisiKpiCellHTML("Totale", formatEUR(totale)) +
     analisiKpiCellHTML("N. transazioni", String(count)) +
+    analisiKpiCellHTML("Mediana per transazione", formatEUR(mediana)) +
     analisiKpiCellHTML("Media per transazione", formatEUR(media)) +
     analisiKpiCellHTML("Più alta", formatEUR(max)) +
     analisiKpiCellHTML("Più bassa", formatEUR(min));
@@ -1049,6 +1078,16 @@ function initAnalisi() {
   const range = defaultAnalisiRange();
   analisiState.from = range.from;
   analisiState.to = range.to;
+
+  document.getElementById("btn-analisi-prev-year").addEventListener("click", () => {
+    analisiOverviewYear -= 1;
+    renderAnalisiOverview();
+  });
+  document.getElementById("btn-analisi-next-year").addEventListener("click", () => {
+    if (analisiOverviewYear >= new Date().getFullYear()) return;
+    analisiOverviewYear += 1;
+    renderAnalisiOverview();
+  });
 
   document.getElementById("analisi-from").addEventListener("change", (e) => {
     analisiState.from = e.target.value || null;

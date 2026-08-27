@@ -5,6 +5,16 @@
  * Gestiscono devicePixelRatio per rendere bene su schermi retina (iPhone).
  */
 
+/* Le variabili CSS (--text, --muted, --border, ...) cambiano automaticamente
+ * tra chiaro/scuro, ma un <canvas> non le legge da solo: i colori vanno letti
+ * "a mano" dal DOM ad ogni disegno con getComputedStyle, così i grafici
+ * seguono il tema invece di restare fissi sui toni pensati per la modalità
+ * chiara (bug: testo quasi nero illeggibile su sfondo scuro). */
+function cssVar(name, fallback) {
+  const v = getComputedStyle(document.body).getPropertyValue(name).trim();
+  return v || fallback;
+}
+
 function setupCanvasDPR(canvas) {
   const dpr = window.devicePixelRatio || 1;
   const rect = canvas.getBoundingClientRect();
@@ -32,13 +42,12 @@ function drawPieChart(canvas, slices) {
   const radius = Math.min(cx, cy) - 10;
 
   if (total <= 0) {
-    ctx.fillStyle = "var(--muted)";
-    ctx.strokeStyle = "#c9cdd6";
+    ctx.strokeStyle = cssVar("--muted", "#7a8291");
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(cx, cy, radius, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.fillStyle = "#8b93a1";
+    ctx.fillStyle = cssVar("--muted", "#7a8291");
     ctx.font = "13px -apple-system, system-ui, sans-serif";
     ctx.textAlign = "center";
     ctx.fillText("Nessun dato", cx, cy + 4);
@@ -68,19 +77,20 @@ function drawPieChart(canvas, slices) {
   // buco centrale per stile "donut"
   ctx.beginPath();
   ctx.arc(cx, cy, radius * 0.55, 0, Math.PI * 2);
-  ctx.fillStyle = getComputedStyle(document.body).getPropertyValue("--card-bg") || "#fff";
+  ctx.fillStyle = cssVar("--card-bg", "#fff");
   ctx.fill();
 
   // legenda a destra
   const legendX = width * 0.58;
   let legendY = cy - (slices.length * 22) / 2 + 8;
+  const legendTextColor = cssVar("--text", "#1c1e21");
   ctx.textAlign = "left";
   ctx.font = "13px -apple-system, system-ui, sans-serif";
   slices.forEach((s) => {
     const pct = total > 0 ? (s.value / total) * 100 : 0;
     ctx.fillStyle = s.color;
     ctx.fillRect(legendX, legendY - 10, 12, 12);
-    ctx.fillStyle = "#333";
+    ctx.fillStyle = legendTextColor;
     ctx.fillText(`${s.label} ${pct.toFixed(1)}%`, legendX + 18, legendY);
     legendY += 22;
   });
@@ -120,8 +130,10 @@ function drawTrendChart(canvas, series, labels) {
   const MIN_LABEL_GAP = 12; // px minimi tra due etichette sull'asse Y
 
   // griglia orizzontale + etichette asse Y
-  ctx.strokeStyle = "#e5e7eb";
-  ctx.fillStyle = "#8b93a1";
+  const gridColor = cssVar("--border", "#e6e8ec");
+  const labelColor = cssVar("--muted", "#7a8291");
+  ctx.strokeStyle = gridColor;
+  ctx.fillStyle = labelColor;
   ctx.font = "11px -apple-system, system-ui, sans-serif";
   ctx.textAlign = "right";
   const gridLines = 4;
@@ -135,17 +147,18 @@ function drawTrendChart(canvas, series, labels) {
     // Salta l'etichetta numerica se cade troppo vicina a quella dello zero (sotto):
     // la riga dello zero ha sempre la priorità, evita così testi sovrapposti/illeggibili.
     if (hasZeroLine && Math.abs(y - y0) < MIN_LABEL_GAP) continue;
+    ctx.fillStyle = labelColor;
     ctx.fillText(Math.round(v).toLocaleString("it-IT"), padding.left - 6, y + 3);
   }
 
   if (hasZeroLine) {
-    ctx.strokeStyle = "#9aa1ad";
+    ctx.strokeStyle = labelColor;
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.moveTo(padding.left, y0);
     ctx.lineTo(width - padding.right, y0);
     ctx.stroke();
-    ctx.fillStyle = "#6b7280";
+    ctx.fillStyle = labelColor;
     ctx.textAlign = "right";
     ctx.fillText("0", padding.left - 6, y0 + 3);
   }
