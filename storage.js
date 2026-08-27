@@ -241,6 +241,18 @@ const Store = {
     return idx + 1; // 1-based
   },
 
+  /** "amount" nel piano è l'importo TOTALE della spesa: qui si calcola quanto vale
+   * la singola rata n (1-based), dividendolo per il numero di rate e arrotondando
+   * al centesimo. L'ultima rata assorbe l'eventuale resto di arrotondamento, così
+   * la somma di tutte le rate torna sempre esattamente uguale al totale inserito
+   * (es. 148,69 € in 3 rate → 49,56 + 49,56 + 49,57). */
+  installmentAmountForIndex(inst, n) {
+    const count = inst.totalInstallments;
+    const base = Math.round((inst.amount / count) * 100) / 100;
+    if (n < count) return base;
+    return Math.round((inst.amount - base * (count - 1)) * 100) / 100;
+  },
+
   seedInstallmentsInto(month, key) {
     const installments = this.data.settings.installments || [];
     installments.forEach((inst) => {
@@ -252,7 +264,7 @@ const Store = {
         installmentId: inst.id,
         installmentIndex: n,
         installmentTotal: inst.totalInstallments,
-        amount: inst.amount,
+        amount: this.installmentAmountForIndex(inst, n),
         note: `${inst.note} (${n}/${inst.totalInstallments})`,
         category: inst.category,
         date: new Date().toISOString()
@@ -277,7 +289,7 @@ const Store = {
         installmentId: inst.id,
         installmentIndex: n,
         installmentTotal: inst.totalInstallments,
-        amount: inst.amount,
+        amount: this.installmentAmountForIndex(inst, n),
         note: `${inst.note} (${n}/${inst.totalInstallments})`,
         category: inst.category,
         date: new Date().toISOString()
@@ -306,7 +318,7 @@ const Store = {
           installmentId: inst.id,
           installmentIndex: n,
           installmentTotal: inst.totalInstallments,
-          amount: inst.amount,
+          amount: this.installmentAmountForIndex(inst, n),
           note: `${inst.note} (${n}/${inst.totalInstallments})`,
           category: inst.category,
           date: new Date().toISOString()

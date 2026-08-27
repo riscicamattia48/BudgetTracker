@@ -161,6 +161,8 @@ function openModal(bucket, itemId = null) {
   document.getElementById("modal-rateizza").checked = false;
   document.getElementById("modal-installments-row").classList.add("hidden");
   document.getElementById("modal-installments-count").value = 2;
+  document.getElementById("modal-amount-label").textContent = "Importo";
+  document.getElementById("modal-rate-preview").classList.add("hidden");
 
   document.getElementById("modal-delete").classList.toggle("hidden", !isEdit);
   document.getElementById("modal-note-suggestions").classList.add("hidden");
@@ -222,13 +224,52 @@ function initNoteAutocomplete() {
   });
 }
 
+/* Calcola come viene diviso un importo TOTALE in N rate: la stessa logica di
+ * Store.installmentAmountForIndex, usata qui solo per mostrare un'anteprima
+ * dal vivo mentre si compila il modulo (l'ultima rata assorbe il resto). */
+function computeInstallmentSplit(totalAmount, count) {
+  if (!totalAmount || totalAmount <= 0 || !count || count < 2) return null;
+  const base = Math.round((totalAmount / count) * 100) / 100;
+  const last = Math.round((totalAmount - base * (count - 1)) * 100) / 100;
+  return { base, last, count };
+}
+
+function formatInstallmentPreview(split) {
+  if (!split) return "";
+  const { base, last, count } = split;
+  if (base === last) return `${count} rate da ${formatEUR(base)} al mese.`;
+  return `${count - 1} rate da ${formatEUR(base)} + 1 rata finale da ${formatEUR(last)}.`;
+}
+
 function initModal() {
   document.getElementById("modal-cancel").addEventListener("click", closeModal);
   document.querySelector("#item-modal .modal-backdrop").addEventListener("click", closeModal);
 
+  function updateRatePreview() {
+    const rateizzaOn = document.getElementById("modal-rateizza").checked;
+    const preview = document.getElementById("modal-rate-preview");
+    if (!rateizzaOn) {
+      preview.classList.add("hidden");
+      return;
+    }
+    const amount = parseFloat(document.getElementById("modal-amount").value);
+    const count = parseInt(document.getElementById("modal-installments-count").value, 10);
+    const split = computeInstallmentSplit(amount, count);
+    if (!split) {
+      preview.classList.add("hidden");
+      return;
+    }
+    preview.textContent = formatInstallmentPreview(split);
+    preview.classList.remove("hidden");
+  }
+
   document.getElementById("modal-rateizza").addEventListener("change", (e) => {
     document.getElementById("modal-installments-row").classList.toggle("hidden", !e.target.checked);
+    document.getElementById("modal-amount-label").textContent = e.target.checked ? "Importo totale" : "Importo";
+    updateRatePreview();
   });
+  document.getElementById("modal-amount").addEventListener("input", updateRatePreview);
+  document.getElementById("modal-installments-count").addEventListener("input", updateRatePreview);
 
   document.getElementById("item-form").addEventListener("submit", (e) => {
     e.preventDefault();
@@ -499,11 +540,17 @@ function renderInstallmentsList() {
   list.innerHTML = items
     .map((item) => {
       const endKey = shiftMonthKey(item.startMonthKey, item.totalInstallments - 1);
+      const split = computeInstallmentSplit(item.amount, item.totalInstallments);
+      const perRata = split
+        ? split.base === split.last
+          ? ` · ${formatEUR(split.base)}/rata`
+          : ` · da ${formatEUR(split.base)}/rata`
+        : "";
       return `
       <li data-id="${item.id}">
         <div>
           <span class="item-note">${escapeHTML(item.note || "—")}</span>
-          <span class="item-category">${RECURRING_BUCKET_LABELS[item.bucket] || item.bucket} · ${item.totalInstallments} rate da ${monthLabel(item.startMonthKey)} a ${monthLabel(endKey)}</span>
+          <span class="item-category">${RECURRING_BUCKET_LABELS[item.bucket] || item.bucket} · ${item.totalInstallments} rate da ${monthLabel(item.startMonthKey)} a ${monthLabel(endKey)}${perRata}</span>
         </div>
         <span class="item-amount">${formatEUR(item.amount)}</span>
       </li>`;
@@ -532,7 +579,21 @@ function openInstallmentModal(itemId = null) {
 
   document.getElementById("installment-delete").classList.toggle("hidden", !isEdit);
   document.getElementById("installment-modal").classList.remove("hidden");
+  updateInstallmentRatePreview();
   setTimeout(() => document.getElementById("installment-amount").focus(), 50);
+}
+
+function updateInstallmentRatePreview() {
+  const preview = document.getElementById("installment-rate-preview");
+  const amount = parseFloat(document.getElementById("installment-amount").value);
+  const count = parseInt(document.getElementById("installment-count").value, 10);
+  const split = computeInstallmentSplit(amount, count);
+  if (!split) {
+    preview.classList.add("hidden");
+    return;
+  }
+  preview.textContent = formatInstallmentPreview(split);
+  preview.classList.remove("hidden");
 }
 
 function populateInstallmentCategorySelect(bucket, selected) {
@@ -556,6 +617,8 @@ function initInstallmentModal() {
   document.getElementById("installment-bucket").addEventListener("change", (e) => {
     populateInstallmentCategorySelect(e.target.value);
   });
+  document.getElementById("installment-amount").addEventListener("input", updateInstallmentRatePreview);
+  document.getElementById("installment-count").addEventListener("input", updateInstallmentRatePreview);
 
   document.getElementById("installment-form").addEventListener("submit", (e) => {
     e.preventDefault();

@@ -213,8 +213,9 @@
         <span class="chevron">⌄</span>
       </div>
       <div class="collapsible-body">
-        <p class="hint">Per spese pagate in più rate (es. un acquisto in 5 mensilità): scegli mese di partenza
-          e numero di rate, e verranno inserite da sole, una al mese, con l'indicazione "n/totale" — poi si fermano.
+        <p class="hint">Per spese pagate in più rate (es. un acquisto in 5 mensilità): inserisci l'importo
+          totale della spesa, scegli mese di partenza e numero di rate — l'importo verrà diviso automaticamente
+          e le rate inserite da sole, una al mese, con l'indicazione "n/totale", poi si fermano.
           Creare o modificare un piano aggiorna subito anche i mesi già aperti.</p>
         <ul class="item-list" id="list-installments"></ul>
         <button class="add-btn accent" id="btn-add-installment">+ Aggiungi spesa rateale</button>
@@ -261,7 +262,7 @@
   <div class="modal-sheet">
     <h3 id="modal-title">Aggiungi voce</h3>
     <form id="item-form">
-      <label>Importo
+      <label><span id="modal-amount-label">Importo</span>
         <div class="inline-form"><span class="prefix">€</span><input type="number" id="modal-amount" inputmode="decimal" step="0.01" required /></div>
       </label>
       <label>Nota / descrizione
@@ -280,6 +281,7 @@
       <label id="modal-installments-row" class="hidden">Numero di rate (inclusa questa)
         <input type="number" id="modal-installments-count" class="plain-number" min="2" max="60" step="1" value="2" />
       </label>
+      <p id="modal-rate-preview" class="hint hidden"></p>
       <div class="modal-actions">
         <button type="button" id="modal-delete" class="btn danger hidden">Elimina</button>
         <button type="button" id="modal-cancel" class="btn secondary">Annulla</button>
@@ -333,7 +335,7 @@
           <option value="investimenti">Investimento</option>
         </select>
       </label>
-      <label>Importo per rata
+      <label>Importo totale
         <div class="inline-form"><span class="prefix">€</span><input type="number" id="installment-amount" inputmode="decimal" step="0.01" required /></div>
       </label>
       <label>Nota / descrizione
@@ -345,6 +347,7 @@
       <label>Numero di rate
         <input type="number" id="installment-count" class="plain-number" min="2" max="60" step="1" required />
       </label>
+      <p id="installment-rate-preview" class="hint hidden"></p>
       <label>Mese di partenza
         <input type="month" id="installment-start" required />
       </label>
