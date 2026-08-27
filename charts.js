@@ -8,8 +8,12 @@
 function setupCanvasDPR(canvas) {
   const dpr = window.devicePixelRatio || 1;
   const rect = canvas.getBoundingClientRect();
-  const width = Math.max(rect.width, 1);
-  const height = Math.max(rect.height, canvas.height || 220);
+  // Nota: la dimensione "logica" va presa SOLO dal layout CSS (getBoundingClientRect),
+  // mai dalle proprietà canvas.width/canvas.height: quelle vengono riscritte qui sotto
+  // a ogni disegno, quindi rileggerle come fallback farebbe crescere il canvas
+  // ad ogni redraw (bug corretto: prima si "auto-ingrandiva" ad ogni ridisegno).
+  const width = rect.width > 0 ? rect.width : 300;
+  const height = rect.height > 0 ? rect.height : 220;
   canvas.width = width * dpr;
   canvas.height = height * dpr;
   const ctx = canvas.getContext("2d");
@@ -46,9 +50,16 @@ function drawPieChart(canvas, slices) {
     if (s.value <= 0) return;
     const angle = (Math.max(s.value, 0) / total) * Math.PI * 2;
     ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.arc(cx, cy, radius, start, start + angle);
-    ctx.closePath();
+    // Una singola categoria al 100% (sweep = giro completo) va disegnata come
+    // cerchio pieno esplicito: alcuni motori di rendering non riempiono
+    // correttamente un arco il cui angolo finale coincide con quello iniziale.
+    if (angle >= Math.PI * 2 - 0.001) {
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    } else {
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, radius, start, start + angle);
+      ctx.closePath();
+    }
     ctx.fillStyle = s.color;
     ctx.fill();
     start += angle;
