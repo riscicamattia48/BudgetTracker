@@ -328,8 +328,9 @@ function initRecurringModal() {
   });
 
   document.getElementById("btn-apply-recurring").addEventListener("click", () => {
-    const added = Store.applyMissingRecurring(state.currentMonthKey);
-    alert(added === 0 ? "Tutte le spese fisse sono già presenti in questo mese." : `Aggiunte ${added} spese fisse al mese corrente (${monthLabel(state.currentMonthKey)}).`);
+    const added = Store.applyMissingRecurringToAllMonths();
+    alert(added === 0 ? "Tutte le spese fisse sono già presenti in tutti i mesi già aperti." : `Aggiunte ${added} voci mancanti nei mesi già aperti.`);
+    renderRiepilogo();
   });
 }
 
@@ -532,8 +533,9 @@ function initInstallmentModal() {
   });
 
   document.getElementById("btn-apply-installments").addEventListener("click", () => {
-    const added = Store.applyMissingInstallments(state.currentMonthKey);
-    alert(added === 0 ? "Nessuna rata da aggiungere per questo mese." : `Aggiunte ${added} rate al mese corrente (${monthLabel(state.currentMonthKey)}).`);
+    const added = Store.applyMissingInstallmentsToAllMonths();
+    alert(added === 0 ? "Nessuna rata da aggiungere nei mesi già aperti." : `Aggiunte ${added} rate mancanti nei mesi già aperti.`);
+    renderRiepilogo();
   });
 }
 
@@ -542,7 +544,11 @@ function initInstallmentModal() {
 /* ---------------------------------------------------------------- */
 
 function renderStorico() {
-  const keys = Store.monthsSortedKeys();
+  // Esclude i mesi futuri (oltre il mese corrente reale, non quello eventualmente
+  // aperto nel Riepilogo): possono essere stati creati per sbaglio/curiosità
+  // navigando avanti, ma non ha senso includerli nello storico/trend.
+  const realCurrentKey = monthKey(new Date());
+  const keys = Store.monthsSortedKeys().filter((k) => k <= realCurrentKey);
   const settings = Store.data.settings;
 
   if (keys.length === 0) {

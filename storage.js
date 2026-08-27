@@ -99,6 +99,26 @@ function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
+/** Garantisce che ogni voce di ogni mese abbia un id univoco. Un backup
+ * caricato da fuori l'app (es. creato a mano o generato da uno script) potrebbe
+ * non averlo: senza id il click su una voce non riesce a ritrovarla e apre il
+ * modale come se fosse una voce nuova, vuota. Ritorna true se ha dovuto
+ * assegnarne almeno uno (così chi chiama sa se serve un salvataggio). */
+function ensureItemIds(months) {
+  let fixed = false;
+  Object.values(months || {}).forEach((month) => {
+    ["entrate", "investimenti", "necessarie", "svago"].forEach((bucket) => {
+      (month[bucket] || []).forEach((item) => {
+        if (!item.id) {
+          item.id = uid();
+          fixed = true;
+        }
+      });
+    });
+  });
+  return fixed;
+}
+
 /** Fonde le impostazioni del bonifico salvate con i default, campo per campo,
  * così un backup vecchio (senza questo campo) o parziale non rompe nulla. */
 function mergeBonificoSettings(parsedSettings) {
@@ -136,6 +156,7 @@ const Store = {
       this.data.settings.bonifico = mergeBonificoSettings(parsed.settings);
       this.data.settings.installments = (parsed.settings && parsed.settings.installments) || [];
       this.data.months = parsed.months || {};
+      if (ensureItemIds(this.data.months)) this.save();
     } catch (e) {
       console.error("Dati corrotti, ripristino i valori di default", e);
       this.data = structuredClone(DEFAULT_DATA);
@@ -267,6 +288,36 @@ const Store = {
     return added;
   },
 
+  /** Come applyMissingInstallments, ma su TUTTI i mesi già creati in una volta sola:
+   * utile quando aggiungi/modifichi un piano di rate dopo aver già aperto diversi mesi. */
+  applyMissingInstallmentsToAllMonths() {
+    const installments = this.data.settings.installments || [];
+    let added = 0;
+    Object.keys(this.data.months).forEach((key) => {
+      const month = this.data.months[key];
+      installments.forEach((inst) => {
+        if (!month[inst.bucket]) return;
+        const n = this.installmentIndexForMonth(inst, key);
+        if (n === null) return;
+        const already = month[inst.bucket].some((i) => i.installmentId === inst.id);
+        if (already) return;
+        month[inst.bucket].push({
+          id: uid(),
+          installmentId: inst.id,
+          installmentIndex: n,
+          installmentTotal: inst.totalInstallments,
+          amount: inst.amount,
+          note: `${inst.note} (${n}/${inst.totalInstallments})`,
+          category: inst.category,
+          date: new Date().toISOString()
+        });
+        added++;
+      });
+    });
+    this.save();
+    return added;
+  },
+
   addInstallmentPlan(item) {
     this.data.settings.installments.push({ id: uid(), ...item });
     this.save();
@@ -281,6 +332,33 @@ const Store = {
   removeInstallmentPlan(id) {
     this.data.settings.installments = this.data.settings.installments.filter((i) => i.id !== id);
     this.save();
+  },
+
+  /** Come applyMissingRecurring, ma su TUTTI i mesi già creati in una volta sola:
+   * utile quando aggiungi/modifichi una spesa fissa dopo aver già aperto diversi mesi
+   * (altrimenti resterebbe assente in quelli aperti prima di configurarla). */
+  applyMissingRecurringToAllMonths() {
+    const recurring = this.data.settings.recurringExpenses || [];
+    let added = 0;
+    Object.keys(this.data.months).forEach((key) => {
+      const month = this.data.months[key];
+      recurring.forEach((r) => {
+        if (!month[r.bucket]) return;
+        const already = month[r.bucket].some((i) => i.recurringId === r.id);
+        if (already) return;
+        month[r.bucket].push({
+          id: uid(),
+          recurringId: r.id,
+          amount: r.amount,
+          note: r.note,
+          category: r.category,
+          date: new Date().toISOString()
+        });
+        added++;
+      });
+    });
+    this.save();
+    return added;
   },
 
   addRecurring(item) {
@@ -369,6 +447,7 @@ const Store = {
     this.data.settings.recurringExpenses = (parsed.settings && parsed.settings.recurringExpenses) || [];
     this.data.settings.bonifico = mergeBonificoSettings(parsed.settings);
     this.data.settings.installments = (parsed.settings && parsed.settings.installments) || [];
+    ensureItemIds(this.data.months);
     this.save();
   },
 
