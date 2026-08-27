@@ -198,8 +198,18 @@ html, body {
 }
 .summary-cell .sub {
   font-size: 10.5px;
+  line-height: 1.3;
   opacity: 0.75;
   margin-top: 2px;
+  /* Stesso motivo del .label sopra: con importi grandi "Massimo: 1.767,06 €"
+     può andare a capo mentre nelle card vicine "Massimo: 543,71 €" ci sta su
+     una riga sola. Riservando qui altezza fissa per 2 righe, le barre di
+     progresso sotto restano allineate a prescindere da quante cifre ha
+     l'importo. */
+  min-height: 2.6em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .summary-cell.necessarie { background: var(--necessarie-bg); color: var(--necessarie); }
 .summary-cell.svago { background: var(--svago-bg); color: var(--svago); }
