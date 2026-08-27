@@ -148,6 +148,10 @@ html, body {
   border-radius: 10px;
   padding: 10px 8px;
   text-align: center;
+  border: 2px solid transparent;
+}
+.summary-cell.over-limit {
+  border-color: var(--danger);
 }
 .summary-cell .label {
   font-size: 11px;
@@ -363,10 +367,12 @@ html, body {
   text-align: right;
   padding: 8px 4px;
   border-bottom: 1px solid var(--border);
-  border-left: 1px solid var(--border);
+  border-left: 1.5px solid var(--muted);
   white-space: nowrap;
 }
 .history-table th:first-child, .history-table td:first-child { text-align: left; border-left: none; white-space: normal; }
+.history-table th { text-align: center; }
+.history-table th:first-child { text-align: left; }
 .history-table tbody tr:nth-child(even) { background: var(--bg); }
 .history-table tbody tr:active { background: var(--border); }
 

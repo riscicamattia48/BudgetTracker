@@ -81,10 +81,10 @@ function renderRiepilogo() {
 function summaryCellHTML(type, label, value, soglia, isMin) {
   let pct = soglia > 0 ? (value / soglia) * 100 : 0;
   pct = Math.max(0, Math.min(100, pct));
-  const over = isMin ? value < soglia - 0.001 : value > soglia + 0.001;
+  const over = soglia > 0 && (isMin ? value < soglia - 0.001 : value > soglia + 0.001);
   const subLabel = isMin ? "Minimo" : "Massimo";
   return `
-    <div class="summary-cell ${type}">
+    <div class="summary-cell ${type} ${over ? "over-limit" : ""}">
       <div class="label">${label}</div>
       <div class="value">${formatEUR(value)}</div>
       <div class="sub">${subLabel}: ${formatEUR(soglia)}</div>
