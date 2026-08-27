@@ -110,6 +110,15 @@ function drawTrendChart(canvas, series, labels) {
     return padding.top + chartH - ((v - minVal) / range) * chartH;
   }
 
+  // riga dello zero: sempre presente quando lo zero cade STRETTAMENTE dentro il
+  // range (se minVal o maxVal coincidono già con 0, è già una delle griglie sotto),
+  // così il grafico ha sempre un riferimento visibile tra valori positivi/negativi.
+  // Calcolata prima delle griglie normali per poter evitare che le due etichette
+  // (es. "-59" e "0") finiscano troppo vicine e si sovrappongano.
+  const hasZeroLine = minVal < 0 && maxVal > 0;
+  const y0 = hasZeroLine ? yFor(0) : null;
+  const MIN_LABEL_GAP = 12; // px minimi tra due etichette sull'asse Y
+
   // griglia orizzontale + etichette asse Y
   ctx.strokeStyle = "#e5e7eb";
   ctx.fillStyle = "#8b93a1";
@@ -123,7 +132,22 @@ function drawTrendChart(canvas, series, labels) {
     ctx.moveTo(padding.left, y);
     ctx.lineTo(width - padding.right, y);
     ctx.stroke();
+    // Salta l'etichetta numerica se cade troppo vicina a quella dello zero (sotto):
+    // la riga dello zero ha sempre la priorità, evita così testi sovrapposti/illeggibili.
+    if (hasZeroLine && Math.abs(y - y0) < MIN_LABEL_GAP) continue;
     ctx.fillText(Math.round(v).toLocaleString("it-IT"), padding.left - 6, y + 3);
+  }
+
+  if (hasZeroLine) {
+    ctx.strokeStyle = "#9aa1ad";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(padding.left, y0);
+    ctx.lineTo(width - padding.right, y0);
+    ctx.stroke();
+    ctx.fillStyle = "#6b7280";
+    ctx.textAlign = "right";
+    ctx.fillText("0", padding.left - 6, y0 + 3);
   }
 
   // etichette asse X (mostra al massimo ~6 etichette per non affollare).

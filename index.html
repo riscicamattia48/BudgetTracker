@@ -39,14 +39,6 @@
       <canvas id="pie-chart" class="pie-canvas" height="200"></canvas>
     </div>
 
-    <div class="card income-card">
-      <h2>Stipendio mese</h2>
-      <div class="inline-form">
-        <span class="prefix">€</span>
-        <input type="number" id="input-stipendio" inputmode="decimal" step="0.01" placeholder="0,00" />
-      </div>
-    </div>
-
     <div class="bucket-card" data-bucket="necessarie">
       <div class="bucket-header necessarie" data-toggle>
         <h2>Spese necessarie</h2>
@@ -55,16 +47,6 @@
       </div>
       <ul class="item-list" id="list-necessarie"></ul>
       <button class="add-btn necessarie" data-add="necessarie">+ Aggiungi spesa necessaria</button>
-    </div>
-
-    <div class="bucket-card" data-bucket="investimenti">
-      <div class="bucket-header investimenti" data-toggle>
-        <h2>Investimenti</h2>
-        <span class="bucket-total" id="total-investimenti">€ 0,00</span>
-        <span class="chevron">⌄</span>
-      </div>
-      <ul class="item-list" id="list-investimenti"></ul>
-      <button class="add-btn investimenti" data-add="investimenti">+ Aggiungi investimento</button>
     </div>
 
     <div class="bucket-card" data-bucket="svago">
@@ -87,10 +69,38 @@
       <button class="add-btn entrate" data-add="entrate">+ Aggiungi entrata extra</button>
     </div>
 
+    <div class="bucket-card" data-bucket="investimenti">
+      <div class="bucket-header investimenti" data-toggle>
+        <h2>Investimenti</h2>
+        <span class="bucket-total" id="total-investimenti">€ 0,00</span>
+        <span class="chevron">⌄</span>
+      </div>
+      <ul class="item-list" id="list-investimenti"></ul>
+      <button class="add-btn investimenti" data-add="investimenti">+ Aggiungi investimento</button>
+    </div>
+
+    <div class="card income-card">
+      <h2>Stipendio mese</h2>
+      <div class="inline-form">
+        <span class="prefix">€</span>
+        <input type="number" id="input-stipendio" inputmode="decimal" step="0.01" placeholder="0,00" />
+      </div>
+    </div>
+
+    <div class="month-danger-zone">
+      <button id="btn-delete-month" class="icon-btn danger-icon" aria-label="Elimina tutti i dati del mese" title="Elimina tutti i dati del mese">🗑️</button>
+    </div>
+
   </section>
 
   <!-- ============ STORICO ============ -->
   <section id="view-storico" class="view hidden">
+    <div class="month-switcher">
+      <button id="btn-prev-year" class="icon-btn" aria-label="Anno precedente">‹</button>
+      <div class="month-label" id="current-history-year">—</div>
+      <button id="btn-next-year" class="icon-btn" aria-label="Anno successivo">›</button>
+    </div>
+
     <div class="card">
       <h2>Andamento nel tempo</h2>
       <canvas id="trend-chart" class="trend-canvas" height="220"></canvas>
@@ -257,7 +267,10 @@
         <div class="inline-form"><span class="prefix">€</span><input type="number" id="modal-amount" inputmode="decimal" step="0.01" required /></div>
       </label>
       <label>Nota / descrizione
-        <input type="text" id="modal-note" placeholder="Es. Spesa Lidl" required />
+        <div class="note-autocomplete">
+          <input type="text" id="modal-note" placeholder="Es. Spesa Lidl" required autocomplete="off" />
+          <div id="modal-note-suggestions" class="note-suggestions hidden"></div>
+        </div>
       </label>
       <label>Categoria
         <select id="modal-category"></select>

@@ -136,6 +136,21 @@ html, body {
   color: var(--text);
 }
 .icon-btn:active { background: var(--bg); }
+.icon-btn:disabled { opacity: 0.35; }
+
+.month-danger-zone {
+  display: flex;
+  justify-content: flex-end;
+  padding: 2px 4px 20px;
+}
+.danger-icon {
+  background: transparent;
+  border: none;
+  font-size: 19px;
+  opacity: 0.5;
+  padding: 8px;
+}
+.danger-icon:active { opacity: 1; background: transparent; }
 
 /* Summary */
 .summary-grid {
@@ -408,17 +423,38 @@ html, body {
   color: var(--muted);
   letter-spacing: 0.03em;
 }
+.cat-drag-hint { margin-top: -2px; font-size: 11px; }
 .cat-tags { display: flex; flex-wrap: wrap; gap: 6px; }
 .cat-tag {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 20px;
-  padding: 5px 6px 5px 12px;
+  padding: 5px 6px 5px 6px;
   font-size: 12.5px;
 }
+.cat-tag.dragging {
+  position: fixed;
+  z-index: 1000;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+  opacity: 0.95;
+}
+.cat-tag-placeholder {
+  border: 1.5px dashed var(--muted);
+  border-radius: 20px;
+  opacity: 0.6;
+}
+.cat-drag-handle {
+  color: var(--muted);
+  font-size: 13px;
+  padding: 2px 2px;
+  line-height: 1;
+  touch-action: none;
+  cursor: grab;
+}
+.cat-tag-label { padding: 0 2px; }
 .cat-tag button {
   border: none;
   background: none;
@@ -496,6 +532,31 @@ html, body {
   background: var(--bg);
   color: var(--text);
 }
+.note-autocomplete { position: relative; }
+.note-suggestions {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  margin-top: 4px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  max-height: 168px;
+  overflow-y: auto;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+  z-index: 5;
+}
+.note-suggestions.hidden { display: none; }
+.note-suggestions .suggestion-item {
+  padding: 10px 12px;
+  font-size: 14px;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+}
+.note-suggestions .suggestion-item:last-child { border-bottom: none; }
+.note-suggestions .suggestion-item:active { background: var(--bg); }
+
 .checkbox-row {
   display: flex;
   align-items: center;

@@ -73,9 +73,9 @@ function renderRiepilogo() {
   ]);
 
   renderBucketList("necessarie");
-  renderBucketList("investimenti");
   renderBucketList("svago");
   renderBucketList("entrate");
+  renderBucketList("investimenti");
 }
 
 function summaryCellHTML(type, label, value, soglia, isMin) {
@@ -163,13 +163,63 @@ function openModal(bucket, itemId = null) {
   document.getElementById("modal-installments-count").value = 2;
 
   document.getElementById("modal-delete").classList.toggle("hidden", !isEdit);
+  document.getElementById("modal-note-suggestions").classList.add("hidden");
   document.getElementById("item-modal").classList.remove("hidden");
   setTimeout(() => document.getElementById("modal-amount").focus(), 50);
 }
 
 function closeModal() {
   document.getElementById("item-modal").classList.add("hidden");
+  document.getElementById("modal-note-suggestions").classList.add("hidden");
   state.modal = { bucket: null, itemId: null };
+}
+
+/* Autocompletamento del campo "Nota": suggerisce nomi già usati in precedenza
+ * per lo stesso bucket (es. digitando "Li" suggerisce "Lidl" se già inserito
+ * in un mese passato), cliccabili per completare il campo. */
+function initNoteAutocomplete() {
+  const noteInput = document.getElementById("modal-note");
+  const suggBox = document.getElementById("modal-note-suggestions");
+
+  function showSuggestions() {
+    const bucket = state.modal.bucket;
+    const q = noteInput.value.trim();
+    if (!bucket || !q) {
+      hideSuggestions();
+      return;
+    }
+    const suggestions = Store.getNoteSuggestions(bucket, q);
+    // Non proporre come suggerimento il testo già identico a quanto scritto.
+    const filtered = suggestions.filter((s) => s.toLowerCase() !== q.toLowerCase());
+    if (filtered.length === 0) {
+      hideSuggestions();
+      return;
+    }
+    suggBox.innerHTML = filtered
+      .map((s) => `<div class="suggestion-item" data-value="${escapeHTML(s)}">${escapeHTML(s)}</div>`)
+      .join("");
+    suggBox.classList.remove("hidden");
+  }
+
+  function hideSuggestions() {
+    suggBox.classList.add("hidden");
+    suggBox.innerHTML = "";
+  }
+
+  noteInput.addEventListener("input", showSuggestions);
+  noteInput.addEventListener("focus", showSuggestions);
+  // "mousedown"/"touchstart" invece di "click": scattano PRIMA del blur
+  // dell'input, altrimenti il blur nasconderebbe la tendina prima del click.
+  suggBox.addEventListener("mousedown", (e) => {
+    const item = e.target.closest(".suggestion-item");
+    if (!item) return;
+    e.preventDefault();
+    noteInput.value = item.dataset.value;
+    hideSuggestions();
+  });
+  noteInput.addEventListener("blur", () => {
+    setTimeout(hideSuggestions, 150);
+  });
 }
 
 function initModal() {
@@ -197,10 +247,13 @@ function initModal() {
         alert("Il numero di rate deve essere almeno 2.");
         return;
       }
-      // Crea il piano di rate a partire dal mese corrente e inserisce subito la prima rata:
-      // riusa la stessa logica delle spese rateali configurate da Impostazioni.
+      // Crea il piano di rate a partire dal mese corrente. Applica subito le rate
+      // mancanti a TUTTI i mesi già aperti (non solo quello corrente): se il mese
+      // di partenza è nel passato, i mesi successivi già esistenti (es. quello
+      // corrente reale) devono ricevere subito la rata che gli spetta, non solo
+      // al prossimo giro di navigazione.
       Store.addInstallmentPlan({ bucket, amount, note, category, totalInstallments, startMonthKey: state.currentMonthKey });
-      Store.applyMissingInstallments(state.currentMonthKey);
+      Store.applyMissingInstallmentsToAllMonths();
     } else if (itemId) {
       Store.updateItem(state.currentMonthKey, bucket, itemId, { amount, note, category });
     } else {
@@ -520,8 +573,12 @@ function initInstallmentModal() {
     } else {
       Store.addInstallmentPlan(payload);
     }
+    // Applica subito le rate mancanti a tutti i mesi già aperti, così non serve
+    // ricordarsi di premere il pulsante "Applica" qui sotto dopo ogni modifica.
+    Store.applyMissingInstallmentsToAllMonths();
     closeInstallmentModal();
     renderInstallmentsList();
+    renderRiepilogo();
   });
 
   document.getElementById("installment-delete").addEventListener("click", () => {
@@ -548,12 +605,18 @@ function renderStorico() {
   // aperto nel Riepilogo): possono essere stati creati per sbaglio/curiosità
   // navigando avanti, ma non ha senso includerli nello storico/trend.
   const realCurrentKey = monthKey(new Date());
-  const keys = Store.monthsSortedKeys().filter((k) => k <= realCurrentKey);
+  const realCurrentYear = new Date().getFullYear();
+  const yearStr = String(state.currentHistoryYear);
+
+  document.getElementById("current-history-year").textContent = yearStr;
+  document.getElementById("btn-next-year").disabled = state.currentHistoryYear >= realCurrentYear;
+
+  const keys = Store.monthsSortedKeys().filter((k) => k <= realCurrentKey && k.startsWith(yearStr));
   const settings = Store.data.settings;
 
   if (keys.length === 0) {
     document.getElementById("trend-chart").getContext("2d").clearRect(0, 0, 9999, 9999);
-    document.getElementById("averages-grid").innerHTML = `<p class="hint">Nessun dato storico ancora disponibile.</p>`;
+    document.getElementById("averages-grid").innerHTML = `<p class="hint">Nessun dato storico per il ${yearStr}.</p>`;
     document.getElementById("history-table-body").innerHTML = `<tr><td colspan="5" class="item-empty">Nessun mese registrato</td></tr>`;
     return;
   }
@@ -713,6 +776,15 @@ function initSettingsHandlers() {
   });
 }
 
+/* Ordina alfabeticamente (locale italiano) tenendo "Altro" sempre come ultima
+ * voce, dato che è la categoria "jolly" e ha senso resti in fondo. */
+function sortCategoriesKeepingAltroLast(list) {
+  const altro = list.filter((c) => c.trim().toLowerCase() === "altro");
+  const rest = list.filter((c) => c.trim().toLowerCase() !== "altro");
+  rest.sort((a, b) => a.localeCompare(b, "it", { sensitivity: "base" }));
+  return rest.concat(altro);
+}
+
 function renderCategoriesEditor() {
   const types = [
     { key: "necessarie", label: "Spese necessarie" },
@@ -726,9 +798,16 @@ function renderCategoriesEditor() {
       (t) => `
     <div class="cat-group" data-type="${t.key}">
       <h4>${t.label}</h4>
+      <p class="hint cat-drag-hint">Tieni premuto <span aria-hidden="true">⠿</span> e trascina per riordinare.</p>
       <div class="cat-tags">
         ${categoriesForBucket(t.key)
-          .map((c) => `<span class="cat-tag">${escapeHTML(c)}<button data-remove="${escapeHTML(c)}">×</button></span>`)
+          .map(
+            (c) => `<span class="cat-tag" data-cat="${escapeHTML(c)}">
+              <span class="cat-drag-handle" aria-hidden="true">⠿</span>
+              <span class="cat-tag-label">${escapeHTML(c)}</span>
+              <button data-remove="${escapeHTML(c)}" aria-label="Rimuovi ${escapeHTML(c)}">×</button>
+            </span>`
+          )
           .join("")}
       </div>
       <div class="cat-add-row">
@@ -760,9 +839,92 @@ function renderCategoriesEditor() {
       const list = Store.data.settings.categories[type];
       if (!list.includes(val)) {
         list.push(val);
+        Store.data.settings.categories[type] = sortCategoriesKeepingAltroLast(list);
         Store.save();
       }
       renderCategoriesEditor();
+    });
+
+    initCategoryDragReorder(group.querySelector(".cat-tags"), type);
+  });
+}
+
+/* Riordino a trascinamento delle "bolle" categoria: tocca/trascina l'iconcina
+ * "⠿" di una categoria per spostarla. Implementato a mano con i Pointer Events
+ * (il drag&drop nativo HTML5 non funziona col touch su iOS Safari). Durante il
+ * trascinamento la bolla esce dal flusso normale (position:fixed) e segue il
+ * dito; un segnaposto nella lista indica dove finirà. Al rilascio l'ordine del
+ * DOM viene salvato come nuovo ordine dell'array in Store. */
+function initCategoryDragReorder(container, type) {
+  container.querySelectorAll(".cat-tag").forEach((tag) => {
+    const handle = tag.querySelector(".cat-drag-handle");
+    if (!handle) return;
+
+    handle.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      const pointerId = e.pointerId;
+      const startRect = tag.getBoundingClientRect();
+      const offsetX = e.clientX - startRect.left;
+      const offsetY = e.clientY - startRect.top;
+
+      const placeholder = document.createElement("span");
+      placeholder.className = "cat-tag-placeholder";
+      placeholder.style.width = `${startRect.width}px`;
+      placeholder.style.height = `${startRect.height}px`;
+      tag.after(placeholder);
+
+      tag.classList.add("dragging");
+      tag.style.width = `${startRect.width}px`;
+      tag.style.left = `${startRect.left}px`;
+      tag.style.top = `${startRect.top}px`;
+      document.body.appendChild(tag);
+
+      try {
+        handle.setPointerCapture(pointerId);
+      } catch (err) {
+        /* alcuni browser potrebbero rifiutare la capture: il drag funziona comunque */
+      }
+
+      function onMove(ev) {
+        tag.style.left = `${ev.clientX - offsetX}px`;
+        tag.style.top = `${ev.clientY - offsetY}px`;
+
+        const siblings = Array.from(container.querySelectorAll(".cat-tag")).filter((el) => el !== tag);
+        for (const sib of siblings) {
+          const r = sib.getBoundingClientRect();
+          if (ev.clientX > r.left && ev.clientX < r.right && ev.clientY > r.top && ev.clientY < r.bottom) {
+            const before = ev.clientX < r.left + r.width / 2;
+            container.insertBefore(placeholder, before ? sib : sib.nextSibling);
+            break;
+          }
+        }
+      }
+
+      function onUp() {
+        try {
+          handle.releasePointerCapture(pointerId);
+        } catch (err) {
+          /* no-op */
+        }
+        handle.removeEventListener("pointermove", onMove);
+        handle.removeEventListener("pointerup", onUp);
+        handle.removeEventListener("pointercancel", onUp);
+
+        container.insertBefore(tag, placeholder);
+        placeholder.remove();
+        tag.classList.remove("dragging");
+        tag.style.width = "";
+        tag.style.left = "";
+        tag.style.top = "";
+
+        const order = Array.from(container.querySelectorAll(".cat-tag")).map((el) => el.dataset.cat);
+        Store.data.settings.categories[type] = order;
+        Store.save();
+      }
+
+      handle.addEventListener("pointermove", onMove);
+      handle.addEventListener("pointerup", onUp);
+      handle.addEventListener("pointercancel", onUp);
     });
   });
 }
@@ -795,6 +957,31 @@ function initMonthSwitcher() {
   });
 }
 
+function initHistoryYearSwitcher() {
+  document.getElementById("btn-prev-year").addEventListener("click", () => {
+    state.currentHistoryYear -= 1;
+    renderStorico();
+  });
+  document.getElementById("btn-next-year").addEventListener("click", () => {
+    if (state.currentHistoryYear >= new Date().getFullYear()) return;
+    state.currentHistoryYear += 1;
+    renderStorico();
+  });
+}
+
+/* ---------------------------------------------------------------- */
+/* ELIMINA TUTTI I DATI DEL MESE (Riepilogo)                         */
+/* ---------------------------------------------------------------- */
+
+function initDeleteMonth() {
+  document.getElementById("btn-delete-month").addEventListener("click", () => {
+    const label = monthLabel(state.currentMonthKey);
+    if (!confirm(`Eliminare tutte le voci di ${label}? L'azione non può essere annullata.`)) return;
+    Store.clearMonth(state.currentMonthKey);
+    renderRiepilogo();
+  });
+}
+
 /* ---------------------------------------------------------------- */
 /* SEZIONI/CARD CONTRAIBILI (Riepilogo + Impostazioni)                */
 /* ---------------------------------------------------------------- */
@@ -819,11 +1006,15 @@ function initCollapsibles() {
 function init() {
   Store.load();
   state.currentMonthKey = monthKey(new Date());
+  state.currentHistoryYear = new Date().getFullYear();
   Store.ensureMonth(state.currentMonthKey);
 
   initTabs();
   initMonthSwitcher();
+  initHistoryYearSwitcher();
+  initDeleteMonth();
   initModal();
+  initNoteAutocomplete();
   initRecurringModal();
   initInstallmentModal();
   initBonificoModal();

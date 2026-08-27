@@ -429,6 +429,45 @@ const Store = {
     return Object.keys(this.data.months).sort();
   },
 
+  /** Svuota completamente un mese (stipendio e tutte le voci), senza ri-applicare
+   * spese fisse/rate: usato dal pulsante "elimina tutti i dati del mese". Il mese
+   * resta comunque presente (così non viene ri-seedato automaticamente se lo si
+   * riapre in seguito). */
+  clearMonth(key) {
+    if (!this.data.months[key]) return;
+    this.data.months[key] = emptyMonth();
+    this.save();
+  },
+
+  /** Suggerimenti di autocompletamento per il campo "nota" di una spesa: raccoglie
+   * le note già usate in quel bucket nei mesi passati (spogliandole dal suffisso
+   * "(n/tot)" delle rate) e restituisce al massimo MAX_SUGGESTIONS voci, privilegiando
+   * quelle che iniziano con la query digitata (stesse iniziali) e, tra quelle, le più
+   * usate in passato — così digitando una sola lettera comune (es. "L") non si apre
+   * un elenco lungo, ma solo le 2-3 spese più frequenti con quell'iniziale. */
+  getNoteSuggestions(bucket, query) {
+    const MAX_SUGGESTIONS = 3;
+    const q = (query || "").trim().toLowerCase();
+    const freq = new Map();
+    Object.values(this.data.months || {}).forEach((month) => {
+      (month[bucket] || []).forEach((item) => {
+        if (!item.note) return;
+        const note = item.note.replace(/\s*\(\d+\/\d+\)\s*$/, "").trim();
+        if (!note) return;
+        freq.set(note, (freq.get(note) || 0) + 1);
+      });
+    });
+    let list = Array.from(freq.keys());
+    if (q) list = list.filter((n) => n.toLowerCase().includes(q));
+    list.sort((a, b) => {
+      const aStarts = a.toLowerCase().startsWith(q) ? 0 : 1;
+      const bStarts = b.toLowerCase().startsWith(q) ? 0 : 1;
+      if (aStarts !== bStarts) return aStarts - bStarts;
+      return freq.get(b) - freq.get(a);
+    });
+    return list.slice(0, MAX_SUGGESTIONS);
+  },
+
   exportJSON() {
     return JSON.stringify(this.data, null, 2);
   },
