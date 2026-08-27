@@ -66,7 +66,8 @@ function renderRiepilogo() {
     summaryCellHTML("risparmi", "Risparmi", stats.risparmi, stats.sogliaRisparmiMin, true);
 
   drawPieChart(document.getElementById("pie-chart"), [
-    { label: "Necessarie", value: stats.totaleNecessarie, color: COLORS.necessarie },
+    { label: "Necessarie", value: stats.necessarie, color: COLORS.necessarie },
+    { label: "Investimenti", value: stats.investimenti, color: COLORS.investimenti },
     { label: "Svago", value: stats.totaleSvago, color: COLORS.svago },
     { label: "Risparmi", value: Math.max(stats.risparmi, 0), color: COLORS.risparmi }
   ]);
@@ -111,7 +112,7 @@ function renderBucketList(bucket) {
       (item) => `
       <li data-id="${item.id}" data-bucket="${bucket}">
         <div>
-          <span class="item-note">${escapeHTML(item.note || "—")}</span>
+          <span class="item-note">${escapeHTML(item.note || "—")}${item.recurringId ? '<span class="fisso-badge">fisso</span>' : ""}</span>
           <span class="item-category">${escapeHTML(item.category || "")}</span>
         </div>
         <span class="item-amount">${formatEUR(item.amount)}</span>
@@ -165,7 +166,7 @@ function closeModal() {
 
 function initModal() {
   document.getElementById("modal-cancel").addEventListener("click", closeModal);
-  document.querySelector(".modal-backdrop").addEventListener("click", closeModal);
+  document.querySelector("#item-modal .modal-backdrop").addEventListener("click", closeModal);
 
   document.getElementById("item-form").addEventListener("submit", (e) => {
     e.preventDefault();
@@ -195,6 +196,115 @@ function initModal() {
 
   document.querySelectorAll("[data-add]").forEach((btn) => {
     btn.addEventListener("click", () => openModal(btn.dataset.add));
+  });
+}
+
+/* ---------------------------------------------------------------- */
+/* MODALE SPESE FISSE (impostazioni)                                 */
+/* ---------------------------------------------------------------- */
+
+const RECURRING_BUCKET_LABELS = {
+  necessarie: "Necessaria",
+  svago: "Svago",
+  investimenti: "Investimento"
+};
+
+let recurringModalState = { itemId: null };
+
+function populateRecurringCategorySelect(bucket, selected) {
+  const select = document.getElementById("recurring-category");
+  select.innerHTML = categoriesForBucket(bucket)
+    .map((c) => `<option value="${escapeHTML(c)}">${escapeHTML(c)}</option>`)
+    .join("");
+  if (selected) select.value = selected;
+}
+
+function openRecurringModal(itemId = null) {
+  recurringModalState = { itemId };
+  const isEdit = !!itemId;
+  const item = isEdit ? Store.data.settings.recurringExpenses.find((r) => r.id === itemId) : null;
+
+  document.getElementById("recurring-modal-title").textContent = isEdit ? "Modifica spesa fissa" : "Aggiungi spesa fissa";
+
+  const bucketSelect = document.getElementById("recurring-bucket");
+  bucketSelect.value = item ? item.bucket : "necessarie";
+  populateRecurringCategorySelect(bucketSelect.value, item ? item.category : null);
+
+  document.getElementById("recurring-amount").value = item ? item.amount : "";
+  document.getElementById("recurring-note").value = item ? item.note : "";
+
+  document.getElementById("recurring-delete").classList.toggle("hidden", !isEdit);
+  document.getElementById("recurring-modal").classList.remove("hidden");
+  setTimeout(() => document.getElementById("recurring-amount").focus(), 50);
+}
+
+function closeRecurringModal() {
+  document.getElementById("recurring-modal").classList.add("hidden");
+  recurringModalState = { itemId: null };
+}
+
+function renderRecurringList() {
+  const list = document.getElementById("list-recurring");
+  const items = Store.data.settings.recurringExpenses || [];
+  if (items.length === 0) {
+    list.innerHTML = `<li class="item-empty">Nessuna spesa fissa configurata</li>`;
+    return;
+  }
+  list.innerHTML = items
+    .map(
+      (item) => `
+      <li data-id="${item.id}">
+        <div>
+          <span class="item-note">${escapeHTML(item.note || "—")}</span>
+          <span class="item-category">${RECURRING_BUCKET_LABELS[item.bucket] || item.bucket} · ${escapeHTML(item.category || "")}</span>
+        </div>
+        <span class="item-amount">${formatEUR(item.amount)}</span>
+      </li>`
+    )
+    .join("");
+
+  list.querySelectorAll("li[data-id]").forEach((li) => {
+    li.addEventListener("click", () => openRecurringModal(li.dataset.id));
+  });
+}
+
+function initRecurringModal() {
+  document.getElementById("btn-add-recurring").addEventListener("click", () => openRecurringModal());
+  document.getElementById("recurring-cancel").addEventListener("click", closeRecurringModal);
+  document.querySelector("#recurring-modal .modal-backdrop").addEventListener("click", closeRecurringModal);
+
+  document.getElementById("recurring-bucket").addEventListener("change", (e) => {
+    populateRecurringCategorySelect(e.target.value);
+  });
+
+  document.getElementById("recurring-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const bucket = document.getElementById("recurring-bucket").value;
+    const amount = parseFloat(document.getElementById("recurring-amount").value);
+    const note = document.getElementById("recurring-note").value.trim();
+    const category = document.getElementById("recurring-category").value;
+    if (!amount || amount <= 0 || !note) return;
+
+    if (recurringModalState.itemId) {
+      Store.updateRecurring(recurringModalState.itemId, { bucket, amount, note, category });
+    } else {
+      Store.addRecurring({ bucket, amount, note, category });
+    }
+    closeRecurringModal();
+    renderRecurringList();
+  });
+
+  document.getElementById("recurring-delete").addEventListener("click", () => {
+    if (!recurringModalState.itemId) return;
+    if (!confirm("Eliminare questa spesa fissa? Le voci già inserite nei mesi non verranno rimosse.")) return;
+    Store.removeRecurring(recurringModalState.itemId);
+    closeRecurringModal();
+    renderRecurringList();
+  });
+
+  document.getElementById("btn-apply-recurring").addEventListener("click", () => {
+    const added = Store.applyMissingRecurring(state.currentMonthKey);
+    alert(added === 0 ? "Tutte le spese fisse sono già presenti in questo mese." : `Aggiunte ${added} spese fisse al mese corrente (${monthLabel(state.currentMonthKey)}).`);
   });
 }
 
@@ -293,6 +403,7 @@ function renderImpostazioni() {
   });
   checkSplitSum();
   renderCategoriesEditor();
+  renderRecurringList();
 }
 
 function checkSplitSum() {
@@ -455,6 +566,7 @@ function init() {
   initTabs();
   initMonthSwitcher();
   initModal();
+  initRecurringModal();
   initSettingsHandlers();
 
   registerChartRedraw(() => {

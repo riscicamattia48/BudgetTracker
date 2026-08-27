@@ -232,7 +232,23 @@ html, body {
 .add-btn.investimenti { color: var(--investimenti); }
 .add-btn.svago { color: var(--svago); }
 .add-btn.entrate { color: #a89417; }
+.add-btn.accent { color: var(--accent); }
 .add-btn:active { background: var(--bg); }
+
+.fisso-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1px 5px;
+  margin-left: 6px;
+  color: var(--muted);
+  vertical-align: middle;
+}
 
 /* Tab bar */
 .tabbar {

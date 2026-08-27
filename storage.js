@@ -10,7 +10,10 @@
  *     thresholdBase: "totale",                                    // "totale" (stipendio+entrate extra) | "stipendio"
  *     categories: {
  *       necessarie: [...nomi], svago: [...nomi], entrate: [...nomi], investimenti: [...nomi]
- *     }
+ *     },
+ *     recurringExpenses: [
+ *       { id, bucket: "necessarie"|"svago"|"investimenti", amount, note, category }
+ *     ]
  *   },
  *   months: {
  *     "2026-04": {
@@ -36,7 +39,8 @@ const DEFAULT_DATA = {
       svago: ["Ristoranti/Bar", "Uscite", "Shopping", "Viaggi", "Abbonamenti svago", "Altro"],
       entrate: ["Rimborso", "Vendita", "Incasso extra", "Altro"],
       investimenti: ["PAC/ETF", "Altro"]
-    }
+    },
+    recurringExpenses: []
   },
   months: {}
 };
@@ -90,6 +94,7 @@ const Store = {
         structuredClone(DEFAULT_DATA.settings.categories),
         (parsed.settings && parsed.settings.categories) || {}
       );
+      this.data.settings.recurringExpenses = (parsed.settings && parsed.settings.recurringExpenses) || [];
       this.data.months = parsed.months || {};
     } catch (e) {
       console.error("Dati corrotti, ripristino i valori di default", e);
@@ -110,12 +115,74 @@ const Store = {
   getMonth(key) {
     if (!this.data.months[key]) {
       this.data.months[key] = emptyMonth();
+      // Un mese "nuovo" (mai aperto prima) viene popolato di default con le
+      // spese fisse configurate nelle impostazioni. Succede una volta sola,
+      // qui: le chiamate successive trovano il mese già esistente e non
+      // rientrano in questo ramo, quindi modificare/eliminare una spesa fissa
+      // dopo non tocca retroattivamente i mesi già creati.
+      this.seedRecurringInto(this.data.months[key]);
     }
     return this.data.months[key];
   },
 
   ensureMonth(key) {
     this.getMonth(key);
+    this.save();
+  },
+
+  seedRecurringInto(month) {
+    const recurring = this.data.settings.recurringExpenses || [];
+    recurring.forEach((r) => {
+      if (!month[r.bucket]) return;
+      month[r.bucket].push({
+        id: uid(),
+        recurringId: r.id,
+        amount: r.amount,
+        note: r.note,
+        category: r.category,
+        date: new Date().toISOString()
+      });
+    });
+  },
+
+  /** Aggiunge al mese indicato le spese fisse non ancora presenti (utile per il mese
+   * corrente, già esistente prima che l'utente configurasse le spese fisse).
+   * Ritorna quante voci sono state aggiunte. */
+  applyMissingRecurring(key) {
+    const month = this.getMonth(key);
+    const recurring = this.data.settings.recurringExpenses || [];
+    let added = 0;
+    recurring.forEach((r) => {
+      if (!month[r.bucket]) return;
+      const already = month[r.bucket].some((i) => i.recurringId === r.id);
+      if (already) return;
+      month[r.bucket].push({
+        id: uid(),
+        recurringId: r.id,
+        amount: r.amount,
+        note: r.note,
+        category: r.category,
+        date: new Date().toISOString()
+      });
+      added++;
+    });
+    this.save();
+    return added;
+  },
+
+  addRecurring(item) {
+    this.data.settings.recurringExpenses.push({ id: uid(), ...item });
+    this.save();
+  },
+
+  updateRecurring(id, patch) {
+    const item = this.data.settings.recurringExpenses.find((r) => r.id === id);
+    if (item) Object.assign(item, patch);
+    this.save();
+  },
+
+  removeRecurring(id) {
+    this.data.settings.recurringExpenses = this.data.settings.recurringExpenses.filter((r) => r.id !== id);
     this.save();
   },
 
@@ -163,6 +230,7 @@ const Store = {
       structuredClone(DEFAULT_DATA.settings.categories),
       (parsed.settings && parsed.settings.categories) || {}
     );
+    this.data.settings.recurringExpenses = (parsed.settings && parsed.settings.recurringExpenses) || [];
     this.save();
   },
 

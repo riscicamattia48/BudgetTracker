@@ -146,6 +146,18 @@
     </div>
 
     <div class="card">
+      <h2>Spese fisse mensili</h2>
+      <p class="hint">Le spese che aggiungi qui vengono inserite automaticamente ogni volta che apri un mese
+        che non avevi ancora aperto prima (il mese corrente, se già esistente, non viene toccato in automatico —
+        usa il pulsante qui sotto per aggiungerle anche a quello).</p>
+      <ul class="item-list" id="list-recurring"></ul>
+      <button class="add-btn accent" id="btn-add-recurring">+ Aggiungi spesa fissa</button>
+      <div class="btn-row" style="margin-top:12px">
+        <button id="btn-apply-recurring" class="btn secondary">Applica al mese corrente</button>
+      </div>
+    </div>
+
+    <div class="card">
       <h2>Backup dati</h2>
       <p class="hint">I dati sono salvati solo su questo dispositivo/browser. Esporta un backup regolarmente.</p>
       <div class="btn-row">
@@ -192,6 +204,37 @@
       <div class="modal-actions">
         <button type="button" id="modal-delete" class="btn danger hidden">Elimina</button>
         <button type="button" id="modal-cancel" class="btn secondary">Annulla</button>
+        <button type="submit" class="btn">Salva</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============ MODALE SPESA FISSA ============ -->
+<div id="recurring-modal" class="modal hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-sheet">
+    <h3 id="recurring-modal-title">Aggiungi spesa fissa</h3>
+    <form id="recurring-form">
+      <label>Tipo
+        <select id="recurring-bucket">
+          <option value="necessarie">Spesa necessaria</option>
+          <option value="svago">Spesa per svago</option>
+          <option value="investimenti">Investimento</option>
+        </select>
+      </label>
+      <label>Importo
+        <div class="inline-form"><span class="prefix">€</span><input type="number" id="recurring-amount" inputmode="decimal" step="0.01" required /></div>
+      </label>
+      <label>Nota / descrizione
+        <input type="text" id="recurring-note" placeholder="Es. Mutuo" required />
+      </label>
+      <label>Categoria
+        <select id="recurring-category"></select>
+      </label>
+      <div class="modal-actions">
+        <button type="button" id="recurring-delete" class="btn danger hidden">Elimina</button>
+        <button type="button" id="recurring-cancel" class="btn secondary">Annulla</button>
         <button type="submit" class="btn">Salva</button>
       </div>
     </form>
