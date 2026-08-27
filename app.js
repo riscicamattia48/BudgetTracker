@@ -671,7 +671,9 @@ function renderStorico() {
   document.getElementById("current-history-year").textContent = yearStr;
   document.getElementById("btn-next-year").disabled = state.currentHistoryYear >= realCurrentYear;
 
-  const keys = Store.monthsSortedKeys().filter((k) => k <= realCurrentKey && k.startsWith(yearStr));
+  const keys = Store.monthsSortedKeys().filter(
+    (k) => k <= realCurrentKey && k.startsWith(yearStr) && !monthIsEmpty(Store.getMonth(k))
+  );
   const settings = Store.data.settings;
 
   if (keys.length === 0) {
@@ -875,7 +877,8 @@ function computeAnalisiOverview(selectedYear) {
   const realCurrentYear = new Date().getFullYear();
   const yearKeys = Store.monthsSortedKeys().filter((k) => {
     if (!k.startsWith(String(year))) return false;
-    return year === realCurrentYear ? k <= realCurrentKey : true;
+    if (!(year === realCurrentYear ? k <= realCurrentKey : true)) return false;
+    return !monthIsEmpty(Store.data.months[k]);
   });
   const perMonth = yearKeys.map((k) => ({ key: k, stats: computeMonthStats(Store.data.months[k], settings) }));
 
@@ -947,7 +950,7 @@ function computeAnalisiOverview(selectedYear) {
   const deltaPct = prevTotUscite > 0 ? (deltaUscite / prevTotUscite) * 100 : 0;
 
   return {
-    year, realCurrentKey, prevKey,
+    year, realCurrentKey, prevKey, yearHasData: yearKeys.length > 0,
     saldoNetto, tassoRisparmioMedio, topCategoria, meseCaro, meseLeggero,
     mediaTransazioni, spesaGiornaliera, daysElapsed, maxItem, totaleInvestito,
     pctFisso, fissoMeseCorrente, totaleMeseCorrente,
@@ -963,16 +966,17 @@ function renderAnalisiOverview() {
   document.getElementById("analisi-overview-year").textContent = String(o.year);
   document.getElementById("btn-analisi-next-year").disabled = analisiOverviewYear >= new Date().getFullYear();
 
-  document.getElementById("analisi-overview-year-grid").innerHTML =
-    analisiKpiCellHTML("Saldo netto", formatEUR(o.saldoNetto), { tone: o.saldoNetto >= 0 ? "good" : "bad" }) +
-    analisiKpiCellHTML("Tasso risparmio medio", `${o.tassoRisparmioMedio.toFixed(1)}%`, { tone: o.tassoRisparmioMedio >= 0 ? "good" : "bad" }) +
-    analisiKpiCellHTML("Categoria top spesa", o.topCategoria ? formatEUR(o.topCategoria.val) : "—", { sub: o.topCategoria ? escapeHTML(o.topCategoria.cat) : "" }) +
-    analisiKpiCellHTML("Mese più caro", o.meseCaro ? formatEUR(o.meseCaro.tot) : "—", { sub: o.meseCaro ? monthLabel(o.meseCaro.key) : "" }) +
-    analisiKpiCellHTML("Mese più leggero", o.meseLeggero ? formatEUR(o.meseLeggero.tot) : "—", { sub: o.meseLeggero ? monthLabel(o.meseLeggero.key) : "" }) +
-    analisiKpiCellHTML("Transazioni medie/mese", o.mediaTransazioni.toFixed(1)) +
-    analisiKpiCellHTML("Spesa media giornaliera", formatEUR(o.spesaGiornaliera), { sub: `su ${o.daysElapsed} giorni` }) +
-    analisiKpiCellHTML("Spesa più alta", o.maxItem ? formatEUR(o.maxItem.amount) : "—", { sub: o.maxItem ? `${escapeHTML(o.maxItem.note || "")} · ${monthLabel(o.maxItem.monthKey)}` : "" }) +
-    analisiKpiCellHTML("Investito nell'anno", formatEUR(o.totaleInvestito));
+  document.getElementById("analisi-overview-year-grid").innerHTML = o.yearHasData
+    ? analisiKpiCellHTML("Saldo netto", formatEUR(o.saldoNetto), { tone: o.saldoNetto >= 0 ? "good" : "bad" }) +
+      analisiKpiCellHTML("Tasso risparmio medio", `${o.tassoRisparmioMedio.toFixed(1)}%`, { tone: o.tassoRisparmioMedio >= 0 ? "good" : "bad" }) +
+      analisiKpiCellHTML("Categoria top spesa", o.topCategoria ? formatEUR(o.topCategoria.val) : "—", { sub: o.topCategoria ? escapeHTML(o.topCategoria.cat) : "" }) +
+      analisiKpiCellHTML("Mese più caro", o.meseCaro ? formatEUR(o.meseCaro.tot) : "—", { sub: o.meseCaro ? monthLabel(o.meseCaro.key) : "" }) +
+      analisiKpiCellHTML("Mese più leggero", o.meseLeggero ? formatEUR(o.meseLeggero.tot) : "—", { sub: o.meseLeggero ? monthLabel(o.meseLeggero.key) : "" }) +
+      analisiKpiCellHTML("Transazioni medie/mese", o.mediaTransazioni.toFixed(1)) +
+      analisiKpiCellHTML("Spesa media giornaliera", formatEUR(o.spesaGiornaliera), { sub: `su ${o.daysElapsed} giorni` }) +
+      analisiKpiCellHTML("Spesa più alta", o.maxItem ? formatEUR(o.maxItem.amount) : "—", { sub: o.maxItem ? `${escapeHTML(o.maxItem.note || "")} · ${monthLabel(o.maxItem.monthKey)}` : "" }) +
+      analisiKpiCellHTML("Investito nell'anno", formatEUR(o.totaleInvestito))
+    : `<p class="hint" style="margin:0">Nessun dato per il ${o.year}.</p>`;
 
   document.getElementById("analisi-overview-month-grid").innerHTML =
     analisiKpiCellHTML("Spese fisse/rate", `${o.pctFisso.toFixed(1)}%`, { sub: `${formatEUR(o.fissoMeseCorrente)} su ${formatEUR(o.totaleMeseCorrente)}` }) +
@@ -1063,9 +1067,9 @@ function renderAnalisi() {
   document.getElementById("analisi-summary-line").textContent = describeAnalisiFilters(count);
   document.getElementById("analisi-kpi-grid").innerHTML =
     analisiKpiCellHTML("Totale", formatEUR(totale)) +
-    analisiKpiCellHTML("N. transazioni", String(count)) +
-    analisiKpiCellHTML("Mediana per transazione", formatEUR(mediana)) +
     analisiKpiCellHTML("Media per transazione", formatEUR(media)) +
+    analisiKpiCellHTML("Mediana per transazione", formatEUR(mediana)) +
+    analisiKpiCellHTML("N. transazioni", String(count)) +
     analisiKpiCellHTML("Più alta", formatEUR(max)) +
     analisiKpiCellHTML("Più bassa", formatEUR(min));
 

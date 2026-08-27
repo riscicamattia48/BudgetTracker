@@ -69,6 +69,24 @@ function emptyMonth(stipendio = 0) {
   return { stipendio, entrate: [], investimenti: [], necessarie: [], svago: [] };
 }
 
+/** Un mese è "vuoto" quando non ha né stipendio né alcuna voce in nessun
+ * bucket: capita per un mese svuotato con "Elimina tutti i dati del mese"
+ * (che lo lascia comunque presente nei dati, così riaprendolo non viene
+ * ri-seedato automaticamente con spese fisse/rate) o per un mese mai
+ * davvero usato. In entrambi i casi non ha senso mostrarlo come una riga a
+ * 0 € nello Storico o nella Panoramica di Analisi: chi chiama filtra questi
+ * mesi con questa funzione invece di nasconderli caso per caso. */
+function monthIsEmpty(month) {
+  if (!month) return true;
+  return (
+    (!month.stipendio || Number(month.stipendio) === 0) &&
+    (month.entrate || []).length === 0 &&
+    (month.investimenti || []).length === 0 &&
+    (month.necessarie || []).length === 0 &&
+    (month.svago || []).length === 0
+  );
+}
+
 function monthKey(date = new Date()) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
