@@ -63,7 +63,7 @@ function renderRiepilogo() {
   document.getElementById("summary-grid").innerHTML =
     summaryCellHTML("necessarie", "Spese necessarie", stats.totaleNecessarie, stats.sogliaNecessarie, false) +
     summaryCellHTML("svago", "Spese per svago", stats.totaleSvago, stats.sogliaSvago, false) +
-    summaryCellHTML("risparmi", "Risparmi", stats.risparmi, stats.sogliaRisparmiMin, true);
+    summaryCellHTML("risparmi", "Risparmi del mese", stats.risparmi, stats.sogliaRisparmiMin, true);
 
   drawPieChart(document.getElementById("pie-chart"), [
     { label: "Necessarie", value: stats.necessarie, color: COLORS.necessarie },
