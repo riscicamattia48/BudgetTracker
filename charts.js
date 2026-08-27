@@ -91,7 +91,7 @@ function drawTrendChart(canvas, series, labels) {
   const { ctx, width, height } = setupCanvasDPR(canvas);
   ctx.clearRect(0, 0, width, height);
 
-  const padding = { top: 16, right: 12, bottom: 28, left: 48 };
+  const padding = { top: 16, right: 20, bottom: 28, left: 48 };
   const chartW = width - padding.left - padding.right;
   const chartH = height - padding.top - padding.bottom;
 
@@ -126,11 +126,20 @@ function drawTrendChart(canvas, series, labels) {
     ctx.fillText(Math.round(v).toLocaleString("it-IT"), padding.left - 6, y + 3);
   }
 
-  // etichette asse X (mostra al massimo ~6 etichette per non affollare)
-  ctx.textAlign = "center";
+  // etichette asse X (mostra al massimo ~6 etichette per non affollare).
+  // La prima/ultima etichetta sono allineate rispettivamente a sinistra/destra
+  // (non centrate) così non escono dal bordo del canvas e non vengono tagliate.
+  // L'ultima etichetta (mese corrente) viene sempre mostrata: se quella "di turno"
+  // per la spaziatura le cade troppo vicina, viene saltata per non sovrapporsi.
   const labelEvery = Math.ceil(n / 6) || 1;
   labels.forEach((lab, i) => {
-    if (i % labelEvery !== 0 && i !== n - 1) return;
+    const isLast = i === n - 1;
+    const isScheduled = i % labelEvery === 0;
+    if (!isScheduled && !isLast) return;
+    if (!isLast && n - 1 - i < labelEvery) return;
+    if (i === 0) ctx.textAlign = "left";
+    else if (isLast) ctx.textAlign = "right";
+    else ctx.textAlign = "center";
     ctx.fillText(lab, xFor(i), height - 8);
   });
 
