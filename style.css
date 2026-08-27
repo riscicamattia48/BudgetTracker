@@ -81,6 +81,31 @@ html, body {
   font-size: 15px;
   font-weight: 600;
 }
+
+/* Sezioni Impostazioni contraibili */
+.card.collapsible { padding: 0; }
+.card.collapsible .card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  cursor: pointer;
+  user-select: none;
+}
+.card.collapsible .card-header h2 { margin: 0; }
+.card.collapsible .collapsible-body { padding: 0 16px 16px; }
+.card.collapsible:not(.expanded) .collapsible-body { display: none; }
+
+.chevron {
+  display: inline-block;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+.expanded .chevron { transform: rotate(180deg); }
 .hint {
   color: var(--muted);
   font-size: 12.5px;
@@ -195,13 +220,17 @@ html, body {
   justify-content: space-between;
   align-items: center;
   padding: 12px 16px;
+  cursor: pointer;
+  user-select: none;
 }
-.bucket-header h2 { margin: 0; font-size: 14.5px; }
+.bucket-header h2 { margin: 0; font-size: 14.5px; flex: 1; }
 .bucket-header.necessarie { background: var(--necessarie-bg); color: var(--necessarie); }
 .bucket-header.investimenti { background: var(--investimenti-bg); color: var(--investimenti); }
 .bucket-header.svago { background: var(--svago-bg); color: var(--svago); }
 .bucket-header.entrate { background: var(--entrate-bg); color: #a89417; }
 .bucket-total { font-weight: 700; font-size: 14px; color: var(--text); }
+.bucket-header .chevron { color: inherit; opacity: 0.7; }
+.bucket-card:not(.expanded) .item-list { display: none; }
 
 .item-list { list-style: none; margin: 0; padding: 0; }
 .item-list li {

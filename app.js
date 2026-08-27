@@ -789,6 +789,27 @@ function initMonthSwitcher() {
   });
 }
 
+/* ---------------------------------------------------------------- */
+/* SEZIONI/CARD CONTRAIBILI (Riepilogo + Impostazioni)                */
+/* ---------------------------------------------------------------- */
+
+function initCollapsibles() {
+  // Card dei bucket nel Riepilogo: cliccando sull'header si mostra/nasconde
+  // l'elenco delle voci (il bottone "+ Aggiungi..." resta sempre visibile).
+  document.querySelectorAll(".bucket-card > .bucket-header[data-toggle]").forEach((header) => {
+    header.addEventListener("click", () => {
+      header.closest(".bucket-card").classList.toggle("expanded");
+    });
+  });
+
+  // Card delle Impostazioni (tranne il Bonifico, che non è contraibile).
+  document.querySelectorAll(".card.collapsible > .card-header[data-toggle]").forEach((header) => {
+    header.addEventListener("click", () => {
+      header.closest(".card").classList.toggle("expanded");
+    });
+  });
+}
+
 function init() {
   Store.load();
   state.currentMonthKey = monthKey(new Date());
@@ -801,6 +822,7 @@ function init() {
   initInstallmentModal();
   initBonificoModal();
   initSettingsHandlers();
+  initCollapsibles();
 
   registerChartRedraw(() => {
     if (state.currentView === "riepilogo") renderRiepilogo();
