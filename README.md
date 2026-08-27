@@ -53,9 +53,13 @@ Non serve installare nulla sul computer: puoi fare tutto dal sito di GitHub.
 1. Vai su [github.com](https://github.com) e crea un nuovo repository
    (es. `budget-tracker`), pubblico, **senza** aggiungere file di esempio.
 2. Apri il repository appena creato e clicca **Add file → Upload files**.
-3. Trascina dentro tutti i file e le cartelle di questo progetto
-   (`index.html`, `manifest.json`, `README.md`, le cartelle `css/`, `js/`,
-   `icons/`) mantenendo la stessa struttura, poi clicca **Commit changes**.
+3. Trascina dentro **tutti i file** di questo progetto in un colpo solo
+   (`index.html`, `manifest.json`, `README.md`, `style.css`, `app.js`,
+   `charts.js`, `storage.js`, `icon-180.png`, `icon-192.png`,
+   `icon-512.png`). Sono tutti allo stesso livello, **senza sottocartelle**,
+   apposta per evitare che il drag-and-drop del browser perda la struttura
+   delle cartelle (un problema comune con questa finestra di GitHub). Poi
+   clicca **Commit changes**.
 4. Vai su **Settings → Pages** (nel menu laterale del repository).
 5. In **Build and deployment → Source** scegli **Deploy from a branch**,
    branch **main**, cartella **/ (root)**, poi **Save**.
@@ -78,18 +82,29 @@ vera app.
 
 ## Struttura del progetto
 
+Tutti i file sono volutamente nella stessa cartella, senza sottocartelle:
+in questo modo puoi sempre selezionarli/trascinarli tutti insieme su GitHub
+senza il rischio che la struttura si perda in fase di upload.
+
 ```
 budget-tracker/
-├── index.html          markup dell'app (le tre schermate: Riepilogo, Storico, Impostazioni)
-├── manifest.json        configurazione PWA (icona, nome, colori)
-├── css/
-│   └── style.css        stile mobile-first, dark mode inclusa
-├── js/
-│   ├── storage.js        modello dati + salvataggio in localStorage + calcoli
-│   ├── charts.js          grafico a torta e grafico di andamento (su <canvas>, senza librerie esterne)
-│   └── app.js              logica dell'interfaccia (rendering, eventi, navigazione)
-└── icons/                icone dell'app (per la schermata Home dell'iPhone)
+├── index.html         markup dell'app (le tre schermate: Riepilogo, Storico, Impostazioni)
+├── manifest.json       configurazione PWA (icona, nome, colori)
+├── style.css            stile mobile-first, dark mode inclusa
+├── storage.js            modello dati + salvataggio in localStorage + calcoli
+├── charts.js              grafico a torta e grafico di andamento (su <canvas>, senza librerie esterne)
+├── app.js                  logica dell'interfaccia (rendering, eventi, navigazione)
+├── icon-180.png             icona per "Aggiungi a Home" su iPhone
+├── icon-192.png              icona PWA
+└── icon-512.png               icona PWA (alta risoluzione)
 ```
+
+Se in futuro il progetto cresce e vuoi riorganizzare i file in sottocartelle
+(es. `css/`, `js/`), ricordati che la via più affidabile per farlo su GitHub
+è **Add file → Create new file** scrivendo il percorso completo nel nome
+(es. `css/style.css`), oppure lavorare in locale con git/GitHub Desktop:
+il drag-and-drop diretto nel browser non garantisce sempre di mantenere le
+sottocartelle.
 
 ## Nota sulla logica delle soglie
 
