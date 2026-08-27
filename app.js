@@ -45,6 +45,7 @@ function switchView(view) {
   });
   if (view === "riepilogo") renderRiepilogo();
   if (view === "storico") renderStorico();
+  if (view === "analisi") renderAnalisi();
   if (view === "impostazioni") renderImpostazioni();
 }
 
@@ -746,6 +747,340 @@ function average(arr) {
 }
 
 /* ---------------------------------------------------------------- */
+/* ANALISI                                                            */
+/* ---------------------------------------------------------------- */
+
+const ANALISI_BUCKETS = ["necessarie", "svago", "investimenti", "entrate"];
+const ANALISI_BUCKET_LABELS = { necessarie: "Necessaria", svago: "Svago", investimenti: "Investimento", entrate: "Entrata" };
+
+let analisiState = {
+  from: null,
+  to: null,
+  query: "",
+  category: "",
+  tipi: new Set(ANALISI_BUCKETS)
+};
+
+/* Filtro di default quando si apre la scheda senza aver ancora toccato nulla:
+ * l'anno corrente, fino al mese reale in corso (i mesi futuri eventualmente
+ * aperti navigando in avanti nel Riepilogo non hanno senso in un report). */
+function defaultAnalisiRange() {
+  const year = new Date().getFullYear();
+  return { from: `${year}-01`, to: monthKey(new Date()) };
+}
+
+/* Appiattisce tutte le voci di tutti i mesi in un unico elenco, ciascuna
+ * arricchita con "bucket" e "monthKey" (informazioni implicite nella
+ * struttura a mesi/bucket dei dati, ma necessarie qui per filtrare/mostrare
+ * voci provenienti da mesi e tipi diversi fianco a fianco). */
+function getAllItemsFlat() {
+  const out = [];
+  Object.keys(Store.data.months).forEach((mk) => {
+    const month = Store.data.months[mk];
+    ANALISI_BUCKETS.forEach((bucket) => {
+      (month[bucket] || []).forEach((item) => {
+        out.push(Object.assign({}, item, { bucket, monthKey: mk }));
+      });
+    });
+  });
+  return out;
+}
+
+function analisiCategoriesForSelectedTipi() {
+  const set = new Set();
+  analisiState.tipi.forEach((b) => categoriesForBucket(b).forEach((c) => set.add(c)));
+  return Array.from(set).sort((a, b) => a.localeCompare(b, "it", { sensitivity: "base" }));
+}
+
+function populateAnalisiCategorySelect() {
+  const select = document.getElementById("analisi-category");
+  const cats = analisiCategoriesForSelectedTipi();
+  select.innerHTML =
+    `<option value="">Tutte le categorie</option>` +
+    cats.map((c) => `<option value="${escapeHTML(c)}">${escapeHTML(c)}</option>`).join("");
+  if (!cats.includes(analisiState.category)) analisiState.category = "";
+  select.value = analisiState.category;
+}
+
+function filteredAnalisiItems() {
+  const q = analisiState.query.trim().toLowerCase();
+  return getAllItemsFlat().filter((item) => {
+    if (!analisiState.tipi.has(item.bucket)) return false;
+    if (analisiState.from && item.monthKey < analisiState.from) return false;
+    if (analisiState.to && item.monthKey > analisiState.to) return false;
+    if (analisiState.category && item.category !== analisiState.category) return false;
+    if (q && !(item.note || "").toLowerCase().includes(q)) return false;
+    return true;
+  });
+}
+
+function describeAnalisiFilters(count) {
+  const parts = [];
+  if (analisiState.from || analisiState.to) {
+    const fromLabel = analisiState.from ? monthLabel(analisiState.from) : "inizio";
+    const toLabel = analisiState.to ? monthLabel(analisiState.to) : "oggi";
+    parts.push(`${fromLabel} – ${toLabel}`);
+  }
+  if (analisiState.tipi.size < ANALISI_BUCKETS.length) {
+    parts.push(Array.from(analisiState.tipi).map((b) => ANALISI_BUCKET_LABELS[b]).join(", ") || "nessun tipo");
+  }
+  if (analisiState.category) parts.push(`categoria "${analisiState.category}"`);
+  if (analisiState.query.trim()) parts.push(`nota contiene "${analisiState.query.trim()}"`);
+  const filtersStr = parts.length ? parts.join(" · ") : "nessun filtro attivo";
+  return `${count} ${count === 1 ? "voce trovata" : "voci trovate"} — ${filtersStr}`;
+}
+
+function analisiKpiCellHTML(label, value, opts) {
+  opts = opts || {};
+  const valueClass = opts.tone ? ` ${opts.tone}` : "";
+  return `
+    <div class="summary-cell neutral">
+      <div class="label">${label}</div>
+      <div class="value${valueClass}">${value}</div>
+      ${opts.sub ? `<div class="sub">${opts.sub}</div>` : ""}
+    </div>`;
+}
+
+/* Legge un mese senza crearlo se non esiste ancora: a differenza di
+ * Store.getMonth(), che seeda spese fisse/rate e salva la prima volta che un
+ * mese viene "aperto", qui vogliamo solo leggere per calcolare una card di
+ * riepilogo — non ha senso che il solo fatto di guardare la scheda Analisi
+ * crei silenziosamente un mese nuovo (es. il mese precedente, se l'utente ha
+ * appena iniziato a usare l'app questo mese). */
+function monthOrEmpty(key) {
+  return Store.data.months[key] || emptyMonth();
+}
+
+/* Calcola tutte le "card KPI" della Panoramica: alcune sull'anno corrente
+ * (da gennaio al mese reale in corso, mesi futuri esclusi), altre sul solo
+ * mese corrente. Sono indipendenti dai filtri della sezione sottostante. */
+function computeAnalisiOverview() {
+  const settings = Store.data.settings;
+  const year = new Date().getFullYear();
+  const realCurrentKey = monthKey(new Date());
+  const yearKeys = Store.monthsSortedKeys().filter((k) => k.startsWith(String(year)) && k <= realCurrentKey);
+  const perMonth = yearKeys.map((k) => ({ key: k, stats: computeMonthStats(Store.data.months[k], settings) }));
+
+  const saldoNetto = perMonth.reduce((acc, m) => acc + m.stats.risparmi, 0);
+
+  const pctRisparmi = perMonth.map((m) => (m.stats.totaleEntrate > 0 ? (m.stats.risparmi / m.stats.totaleEntrate) * 100 : 0));
+  const tassoRisparmioMedio = average(pctRisparmi);
+
+  const catTotals = new Map();
+  let maxItem = null;
+  yearKeys.forEach((k) => {
+    const month = Store.data.months[k];
+    ["necessarie", "svago", "investimenti"].forEach((bucket) => {
+      (month[bucket] || []).forEach((item) => {
+        const amt = Number(item.amount) || 0;
+        const cat = item.category || "Senza categoria";
+        catTotals.set(cat, (catTotals.get(cat) || 0) + amt);
+        if (!maxItem || amt > maxItem.amount) maxItem = { amount: amt, note: item.note, monthKey: k };
+      });
+    });
+  });
+  let topCategoria = null;
+  catTotals.forEach((val, cat) => {
+    if (!topCategoria || val > topCategoria.val) topCategoria = { cat, val };
+  });
+
+  let meseCaro = null, meseLeggero = null;
+  perMonth.forEach((m) => {
+    const totUscite = m.stats.totaleNecessarie + m.stats.totaleSvago;
+    if (!meseCaro || totUscite > meseCaro.tot) meseCaro = { key: m.key, tot: totUscite };
+    if (!meseLeggero || totUscite < meseLeggero.tot) meseLeggero = { key: m.key, tot: totUscite };
+  });
+
+  const transazioniPerMese = yearKeys.map((k) => {
+    const month = Store.data.months[k];
+    return ANALISI_BUCKETS.reduce((acc, b) => acc + (month[b] || []).length, 0);
+  });
+  const mediaTransazioni = average(transazioniPerMese);
+
+  const totUsciteAnno = perMonth.reduce((acc, m) => acc + m.stats.totaleNecessarie + m.stats.totaleSvago, 0);
+  const startOfYear = new Date(year, 0, 1);
+  const daysElapsed = Math.floor((new Date() - startOfYear) / 86400000) + 1;
+  const spesaGiornaliera = daysElapsed > 0 ? totUsciteAnno / daysElapsed : 0;
+
+  const totaleInvestito = perMonth.reduce((acc, m) => acc + m.stats.investimenti, 0);
+
+  const curMonth = monthOrEmpty(realCurrentKey);
+  let totaleMeseCorrente = 0, fissoMeseCorrente = 0;
+  ["necessarie", "svago", "investimenti"].forEach((bucket) => {
+    (curMonth[bucket] || []).forEach((item) => {
+      const amt = Number(item.amount) || 0;
+      totaleMeseCorrente += amt;
+      if (item.recurringId || item.installmentId) fissoMeseCorrente += amt;
+    });
+  });
+  const pctFisso = totaleMeseCorrente > 0 ? (fissoMeseCorrente / totaleMeseCorrente) * 100 : 0;
+
+  const prevKey = shiftMonthKey(realCurrentKey, -1);
+  const prevStats = computeMonthStats(monthOrEmpty(prevKey), settings);
+  const curStats = computeMonthStats(curMonth, settings);
+  const curTotUscite = curStats.totaleNecessarie + curStats.totaleSvago;
+  const prevTotUscite = prevStats.totaleNecessarie + prevStats.totaleSvago;
+  const deltaUscite = curTotUscite - prevTotUscite;
+  const deltaPct = prevTotUscite > 0 ? (deltaUscite / prevTotUscite) * 100 : 0;
+
+  return {
+    year, realCurrentKey, prevKey,
+    saldoNetto, tassoRisparmioMedio, topCategoria, meseCaro, meseLeggero,
+    mediaTransazioni, spesaGiornaliera, daysElapsed, maxItem, totaleInvestito,
+    pctFisso, fissoMeseCorrente, totaleMeseCorrente,
+    curTotUscite, prevTotUscite, deltaUscite, deltaPct
+  };
+}
+
+function renderAnalisiOverview() {
+  const o = computeAnalisiOverview();
+  document.getElementById("analisi-overview-year").textContent = String(o.year);
+
+  document.getElementById("analisi-overview-year-grid").innerHTML =
+    analisiKpiCellHTML("Saldo netto", formatEUR(o.saldoNetto), { tone: o.saldoNetto >= 0 ? "good" : "bad" }) +
+    analisiKpiCellHTML("Tasso risparmio medio", `${o.tassoRisparmioMedio.toFixed(1)}%`, { tone: o.tassoRisparmioMedio >= 0 ? "good" : "bad" }) +
+    analisiKpiCellHTML("Categoria top spesa", o.topCategoria ? formatEUR(o.topCategoria.val) : "—", { sub: o.topCategoria ? escapeHTML(o.topCategoria.cat) : "" }) +
+    analisiKpiCellHTML("Mese più caro", o.meseCaro ? formatEUR(o.meseCaro.tot) : "—", { sub: o.meseCaro ? monthLabel(o.meseCaro.key) : "" }) +
+    analisiKpiCellHTML("Mese più leggero", o.meseLeggero ? formatEUR(o.meseLeggero.tot) : "—", { sub: o.meseLeggero ? monthLabel(o.meseLeggero.key) : "" }) +
+    analisiKpiCellHTML("Transazioni medie/mese", o.mediaTransazioni.toFixed(1)) +
+    analisiKpiCellHTML("Spesa media giornaliera", formatEUR(o.spesaGiornaliera), { sub: `su ${o.daysElapsed} giorni` }) +
+    analisiKpiCellHTML("Spesa più alta", o.maxItem ? formatEUR(o.maxItem.amount) : "—", { sub: o.maxItem ? `${escapeHTML(o.maxItem.note || "")} · ${monthLabel(o.maxItem.monthKey)}` : "" }) +
+    analisiKpiCellHTML("Investito nell'anno", formatEUR(o.totaleInvestito));
+
+  document.getElementById("analisi-overview-month-grid").innerHTML =
+    analisiKpiCellHTML("Spese fisse/rate", `${o.pctFisso.toFixed(1)}%`, { sub: `${formatEUR(o.fissoMeseCorrente)} su ${formatEUR(o.totaleMeseCorrente)}` }) +
+    analisiKpiCellHTML("Rispetto al mese scorso", formatEUR(o.curTotUscite), {
+      tone: o.deltaUscite > 0 ? "bad" : o.deltaUscite < 0 ? "good" : "",
+      sub: `${o.deltaUscite >= 0 ? "▲" : "▼"} ${Math.abs(o.deltaPct).toFixed(1)}% vs ${monthLabel(o.prevKey)}`
+    });
+}
+
+function renderAnalisiBreakdown(items) {
+  const container = document.getElementById("analisi-category-breakdown");
+  if (items.length === 0) {
+    container.innerHTML = `<p class="hint">Nessuna voce corrisponde ai filtri.</p>`;
+    return;
+  }
+  const map = new Map();
+  items.forEach((i) => {
+    const key = i.category || "Senza categoria";
+    map.set(key, (map.get(key) || 0) + (Number(i.amount) || 0));
+  });
+  const rows = Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
+  const maxVal = rows[0][1];
+  container.innerHTML = rows
+    .map(
+      ([cat, val]) => `
+      <div class="breakdown-row">
+        <div class="breakdown-label">
+          <span>${escapeHTML(cat)}</span>
+          <span class="breakdown-value">${formatEUR(val)}</span>
+        </div>
+        <div class="progress-track"><div class="progress-fill" style="width:${maxVal > 0 ? (val / maxVal) * 100 : 0}%; background: var(--accent)"></div></div>
+      </div>`
+    )
+    .join("");
+}
+
+function renderAnalisiList(items) {
+  const list = document.getElementById("analisi-item-list");
+  if (items.length === 0) {
+    list.innerHTML = `<li class="item-empty">Nessuna voce corrisponde ai filtri</li>`;
+    return;
+  }
+  // Più recenti prima: per mese decrescente, e a parità di mese nell'ordine in
+  // cui compaiono nel bucket (che è già l'ordine di inserimento).
+  const sorted = items.slice().sort((a, b) => b.monthKey.localeCompare(a.monthKey));
+  list.innerHTML = sorted
+    .map(
+      (item) => `
+      <li data-id="${item.id}" data-bucket="${item.bucket}" data-month="${item.monthKey}">
+        <div>
+          <span class="item-note">${escapeHTML(item.note || "—")}</span>
+          <span class="item-category">${ANALISI_BUCKET_LABELS[item.bucket]} · ${escapeHTML(item.category || "")} · ${monthLabel(item.monthKey)}</span>
+        </div>
+        <span class="item-amount">${formatEUR(item.amount)}</span>
+      </li>`
+    )
+    .join("");
+
+  list.querySelectorAll("li[data-id]").forEach((li) => {
+    li.addEventListener("click", () => {
+      state.currentMonthKey = li.dataset.month;
+      Store.ensureMonth(state.currentMonthKey);
+      switchView("riepilogo");
+      openModal(li.dataset.bucket, li.dataset.id);
+    });
+  });
+}
+
+function renderAnalisi() {
+  renderAnalisiOverview();
+  populateAnalisiCategorySelect();
+  document.getElementById("analisi-from").value = analisiState.from || "";
+  document.getElementById("analisi-to").value = analisiState.to || "";
+  document.getElementById("analisi-query").value = analisiState.query;
+  document.querySelectorAll("#analisi-tipo-checks input").forEach((cb) => {
+    cb.checked = analisiState.tipi.has(cb.value);
+  });
+
+  const items = filteredAnalisiItems();
+  const amounts = items.map((i) => Number(i.amount) || 0);
+  const totale = amounts.reduce((a, b) => a + b, 0);
+  const count = items.length;
+  const media = count > 0 ? totale / count : 0;
+  const max = count > 0 ? Math.max(...amounts) : 0;
+  const min = count > 0 ? Math.min(...amounts) : 0;
+
+  document.getElementById("analisi-summary-line").textContent = describeAnalisiFilters(count);
+  document.getElementById("analisi-kpi-grid").innerHTML =
+    analisiKpiCellHTML("Totale", formatEUR(totale)) +
+    analisiKpiCellHTML("N. transazioni", String(count)) +
+    analisiKpiCellHTML("Media per transazione", formatEUR(media)) +
+    analisiKpiCellHTML("Più alta", formatEUR(max)) +
+    analisiKpiCellHTML("Più bassa", formatEUR(min));
+
+  renderAnalisiBreakdown(items);
+  renderAnalisiList(items);
+  document.getElementById("analisi-count").textContent = String(count);
+}
+
+function initAnalisi() {
+  const range = defaultAnalisiRange();
+  analisiState.from = range.from;
+  analisiState.to = range.to;
+
+  document.getElementById("analisi-from").addEventListener("change", (e) => {
+    analisiState.from = e.target.value || null;
+    renderAnalisi();
+  });
+  document.getElementById("analisi-to").addEventListener("change", (e) => {
+    analisiState.to = e.target.value || null;
+    renderAnalisi();
+  });
+  document.getElementById("analisi-query").addEventListener("input", (e) => {
+    analisiState.query = e.target.value;
+    renderAnalisi();
+  });
+  document.getElementById("analisi-category").addEventListener("change", (e) => {
+    analisiState.category = e.target.value;
+    renderAnalisi();
+  });
+  document.querySelectorAll("#analisi-tipo-checks input").forEach((cb) => {
+    cb.addEventListener("change", () => {
+      if (cb.checked) analisiState.tipi.add(cb.value);
+      else analisiState.tipi.delete(cb.value);
+      renderAnalisi();
+    });
+  });
+  document.getElementById("btn-analisi-reset").addEventListener("click", () => {
+    const r = defaultAnalisiRange();
+    analisiState = { from: r.from, to: r.to, query: "", category: "", tipi: new Set(ANALISI_BUCKETS) };
+    renderAnalisi();
+  });
+}
+
+/* ---------------------------------------------------------------- */
 /* IMPOSTAZIONI                                                       */
 /* ---------------------------------------------------------------- */
 
@@ -1078,6 +1413,7 @@ function init() {
   initBonificoModal();
   initSettingsHandlers();
   initCollapsibles();
+  initAnalisi();
 
   registerChartRedraw(() => {
     if (state.currentView === "riepilogo") renderRiepilogo();

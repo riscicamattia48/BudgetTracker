@@ -135,6 +135,63 @@
     </div>
   </section>
 
+  <!-- ============ ANALISI ============ -->
+  <section id="view-analisi" class="view hidden">
+
+    <div class="card">
+      <h2>Panoramica · <span id="analisi-overview-year"></span></h2>
+      <div class="summary-grid analisi-kpi-grid" id="analisi-overview-year-grid"></div>
+    </div>
+
+    <div class="card">
+      <h2>Panoramica · mese corrente</h2>
+      <div class="summary-grid cols-2 analisi-kpi-grid" id="analisi-overview-month-grid"></div>
+    </div>
+
+    <div class="card">
+      <h2>Filtri</h2>
+      <div class="split-form">
+        <label>Da mese <input type="month" id="analisi-from" /></label>
+        <label>A mese <input type="month" id="analisi-to" /></label>
+      </div>
+      <div class="filter-form">
+        <label>Parola chiave
+          <input type="text" id="analisi-query" placeholder="Cerca nella nota…" autocomplete="off" />
+        </label>
+        <label>Categoria
+          <select id="analisi-category"></select>
+        </label>
+      </div>
+      <p class="hint" style="margin-bottom:6px">Tipo di voce</p>
+      <div class="tipo-checks" id="analisi-tipo-checks">
+        <label><input type="checkbox" value="necessarie" checked /> Necessarie</label>
+        <label><input type="checkbox" value="svago" checked /> Svago</label>
+        <label><input type="checkbox" value="investimenti" checked /> Investimenti</label>
+        <label><input type="checkbox" value="entrate" checked /> Entrate</label>
+      </div>
+      <div class="btn-row" style="margin-top:14px">
+        <button id="btn-analisi-reset" class="btn secondary">Reimposta filtri</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Risultati</h2>
+      <p class="hint" id="analisi-summary-line"></p>
+      <div class="summary-grid analisi-kpi-grid" id="analisi-kpi-grid"></div>
+    </div>
+
+    <div class="card">
+      <h2>Per categoria</h2>
+      <div id="analisi-category-breakdown"></div>
+    </div>
+
+    <div class="card">
+      <h2>Voci (<span id="analisi-count">0</span>)</h2>
+      <ul class="item-list" id="analisi-item-list"></ul>
+    </div>
+
+  </section>
+
   <!-- ============ IMPOSTAZIONI ============ -->
   <section id="view-impostazioni" class="view hidden">
 
@@ -251,6 +308,9 @@
   <button class="tab-btn" data-view="storico">
     <span class="tab-icon">📈</span><span>Storico</span>
   </button>
+  <button class="tab-btn" data-view="analisi">
+    <span class="tab-icon">🔎</span><span>Analisi</span>
+  </button>
   <button class="tab-btn" data-view="impostazioni">
     <span class="tab-icon">⚙️</span><span>Impostazioni</span>
   </button>
@@ -267,7 +327,7 @@
       </label>
       <label>Nota / descrizione
         <div class="note-autocomplete">
-          <input type="text" id="modal-note" placeholder="Es. Spesa Lidl" required autocomplete="off" />
+          <input type="text" id="modal-note" required autocomplete="off" />
           <div id="modal-note-suggestions" class="note-suggestions hidden"></div>
         </div>
       </label>

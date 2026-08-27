@@ -21,6 +21,11 @@ da capire, modificare e pubblicare gratis su GitHub Pages.
 - **Storico**: grafico di andamento nel tempo (necessarie / svago / risparmi),
   medie storiche e tabella di tutti i mesi registrati (tocca una riga per
   aprire quel mese).
+- **Analisi**: filtra tutte le voci per periodo (mese di inizio/fine), parola
+  nella nota, categoria e tipo (necessarie/svago/investimenti/entrate) — senza
+  filtri mostra l'anno corrente. Mostra totale, numero di transazioni, media,
+  voce più alta/più bassa, ripartizione per categoria ed elenco delle voci
+  trovate (tocca una voce per aprirla e modificarla).
 - **Impostazioni**: percentuali di budget, base di calcolo delle soglie
   (stipendio da solo oppure stipendio + entrate extra), categorie
   personalizzabili, export/import di un backup JSON, reset dati.
@@ -98,7 +103,7 @@ senza il rischio che la struttura si perda in fase di upload.
 
 ```
 budget-tracker/
-├── index.html         markup dell'app (le tre schermate: Riepilogo, Storico, Impostazioni)
+├── index.html         markup dell'app (le quattro schermate: Riepilogo, Storico, Analisi, Impostazioni)
 ├── manifest.json       configurazione PWA (icona, nome, colori)
 ├── style.css            stile mobile-first, dark mode inclusa
 ├── storage.js            modello dati + salvataggio in localStorage + calcoli

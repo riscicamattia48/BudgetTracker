@@ -17,6 +17,8 @@
   --border: #e6e8ec;
   --danger: #d9534f;
   --accent: #6b4ce6;
+  --accent-bg: #ede8fc;
+  --good: #2f9e56;
 
   color-scheme: light;
 }
@@ -33,6 +35,8 @@
     --entrate-bg: #38351a;
     --investimenti-bg: #1c2e40;
     --risparmi-bg: #2c2140;
+    --accent-bg: #2a2140;
+    --good: #3ab873;
     color-scheme: dark;
   }
 }
@@ -196,7 +200,12 @@ html, body {
 .summary-cell.necessarie { background: var(--necessarie-bg); color: var(--necessarie); }
 .summary-cell.svago { background: var(--svago-bg); color: var(--svago); }
 .summary-cell.risparmi { background: var(--risparmi-bg); color: var(--risparmi); }
+.summary-cell.neutral { background: var(--accent-bg); color: var(--accent); }
 .summary-cell .value, .summary-cell .sub { color: var(--text); }
+.summary-cell .value.good { color: var(--good); }
+.summary-cell .value.bad { color: var(--danger); }
+.summary-grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+.card h2 .hint-inline, .card h2 #analisi-overview-year { font-weight: 400; color: var(--muted); font-size: 13px; }
 
 .pie-canvas {
   width: 100%;
@@ -414,6 +423,52 @@ html, body {
 
 .radio-row { display: flex; flex-direction: column; gap: 8px; font-size: 13.5px; }
 .radio-row label { display: flex; align-items: center; gap: 8px; }
+
+/* Analisi: filtri */
+.filter-form label {
+  display: block;
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+.filter-form label:last-child { margin-bottom: 10px; }
+.filter-form input[type="text"],
+.filter-form select {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  font-size: 16px;
+  margin-top: 4px;
+  background: var(--bg);
+  color: var(--text);
+}
+.tipo-checks { display: flex; gap: 14px; flex-wrap: wrap; margin: 0 0 4px; }
+.tipo-checks label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text);
+  margin-bottom: 0 !important;
+}
+.tipo-checks input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+/* Analisi: risultati */
+.analisi-kpi-grid { margin-top: 4px; }
+.breakdown-row { margin-bottom: 12px; }
+.breakdown-row:last-child { margin-bottom: 0; }
+.breakdown-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+.breakdown-label .breakdown-value { font-weight: 600; }
 
 #categories-editor .cat-group { margin-bottom: 14px; }
 #categories-editor .cat-group h4 {
