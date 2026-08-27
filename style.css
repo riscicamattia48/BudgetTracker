@@ -235,6 +235,22 @@ html, body {
 .add-btn.accent { color: var(--accent); }
 .add-btn:active { background: var(--bg); }
 
+.bonifico-total {
+  background: var(--risparmi-bg);
+  border-radius: 12px;
+  padding: 14px 16px;
+  text-align: center;
+}
+.bonifico-total-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--risparmi);
+}
+.bonifico-total-sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 4px;
+}
 .fisso-badge {
   display: inline-block;
   font-size: 10px;
@@ -247,6 +263,18 @@ html, body {
   padding: 1px 5px;
   margin-left: 6px;
   color: var(--muted);
+  vertical-align: middle;
+}
+.rata-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  background: var(--investimenti-bg);
+  border: 1px solid var(--investimenti);
+  border-radius: 6px;
+  padding: 1px 5px;
+  margin-left: 6px;
+  color: var(--investimenti);
   vertical-align: middle;
 }
 
@@ -312,7 +340,7 @@ html, body {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 8px;
-  font-size: 15px;
+  font-size: 16px;
   background: var(--bg);
   color: var(--text);
 }
@@ -356,7 +384,7 @@ html, body {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 8px;
-  font-size: 13.5px;
+  font-size: 16px;
   background: var(--bg);
   color: var(--text);
 }
@@ -398,22 +426,43 @@ html, body {
   margin: 0 auto;
 }
 .modal-sheet h3 { margin: 0 0 14px; font-size: 16px; }
-#item-form label {
+.modal-sheet label {
   display: block;
   font-size: 12.5px;
   color: var(--muted);
   margin-bottom: 12px;
 }
-#item-form input[type="text"], #item-form select {
+.modal-sheet input[type="text"],
+.modal-sheet input[type="month"],
+.modal-sheet input.plain-number,
+.modal-sheet select {
   width: 100%;
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 10px;
-  font-size: 15px;
+  font-size: 16px;
   margin-top: 4px;
   background: var(--bg);
   color: var(--text);
 }
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.checkbox-row input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  accent-color: var(--accent);
+}
+.checkbox-row label {
+  margin-bottom: 0 !important;
+  font-size: 13.5px !important;
+  color: var(--text) !important;
+}
+
 .modal-actions { display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
 .modal-actions .btn { flex: 1; }
 

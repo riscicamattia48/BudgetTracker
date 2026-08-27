@@ -13,6 +13,15 @@
  *     },
  *     recurringExpenses: [
  *       { id, bucket: "necessarie"|"svago"|"investimenti", amount, note, category }
+ *     ],
+ *     bonifico: {
+ *       fromLabel: "TR", toLabel: "CA",
+ *       monthly: [{ id, amount, note }]    // spese mensili trasferite da un conto all'altro
+ *     },
+ *     installments: [
+ *       // spesa a rate: si inserisce da sola per "totalInstallments" mesi
+ *       // consecutivi a partire da "startMonthKey", poi si ferma
+ *       { id, bucket, amount, note, category, totalInstallments, startMonthKey }
  *     ]
  *   },
  *   months: {
@@ -40,7 +49,18 @@ const DEFAULT_DATA = {
       entrate: ["Rimborso", "Vendita", "Incasso extra", "Altro"],
       investimenti: ["PAC/ETF", "Altro"]
     },
-    recurringExpenses: []
+    recurringExpenses: [],
+    bonifico: {
+      fromLabel: "TR",
+      toLabel: "CA",
+      monthly: [
+        { id: "b-mutuo", amount: 413.24, note: "Mutuo" },
+        { id: "b-cpi", amount: 22.32, note: "Assicurazione CPI" },
+        { id: "b-fibra", amount: 23.99, note: "Fibra WindTre" },
+        { id: "b-mobile", amount: 9.99, note: "Mobile WindTre" }
+      ]
+    },
+    installments: []
   },
   months: {}
 };
@@ -68,8 +88,26 @@ function shiftMonthKey(key, delta) {
   return monthKey(d);
 }
 
+/** Converte "YYYY-MM" in un indice assoluto crescente, comodo per calcolare
+ * quante rate sono passate da un mese di partenza. */
+function absMonthIndex(key) {
+  const [y, m] = key.split("-").map(Number);
+  return y * 12 + (m - 1);
+}
+
 function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+
+/** Fonde le impostazioni del bonifico salvate con i default, campo per campo,
+ * così un backup vecchio (senza questo campo) o parziale non rompe nulla. */
+function mergeBonificoSettings(parsedSettings) {
+  const saved = (parsedSettings && parsedSettings.bonifico) || {};
+  return {
+    fromLabel: saved.fromLabel || DEFAULT_DATA.settings.bonifico.fromLabel,
+    toLabel: saved.toLabel || DEFAULT_DATA.settings.bonifico.toLabel,
+    monthly: Array.isArray(saved.monthly) ? saved.monthly : structuredClone(DEFAULT_DATA.settings.bonifico.monthly)
+  };
 }
 
 const Store = {
@@ -95,6 +133,8 @@ const Store = {
         (parsed.settings && parsed.settings.categories) || {}
       );
       this.data.settings.recurringExpenses = (parsed.settings && parsed.settings.recurringExpenses) || [];
+      this.data.settings.bonifico = mergeBonificoSettings(parsed.settings);
+      this.data.settings.installments = (parsed.settings && parsed.settings.installments) || [];
       this.data.months = parsed.months || {};
     } catch (e) {
       console.error("Dati corrotti, ripristino i valori di default", e);
@@ -116,11 +156,13 @@ const Store = {
     if (!this.data.months[key]) {
       this.data.months[key] = emptyMonth();
       // Un mese "nuovo" (mai aperto prima) viene popolato di default con le
-      // spese fisse configurate nelle impostazioni. Succede una volta sola,
-      // qui: le chiamate successive trovano il mese già esistente e non
-      // rientrano in questo ramo, quindi modificare/eliminare una spesa fissa
-      // dopo non tocca retroattivamente i mesi già creati.
+      // spese fisse e le rate configurate nelle impostazioni. Succede una
+      // volta sola, qui: le chiamate successive trovano il mese già
+      // esistente e non rientrano in questo ramo, quindi modificare/
+      // eliminare una spesa fissa o un piano di rate dopo non tocca
+      // retroattivamente i mesi già creati.
       this.seedRecurringInto(this.data.months[key]);
+      this.seedInstallmentsInto(this.data.months[key], key);
     }
     return this.data.months[key];
   },
@@ -170,6 +212,77 @@ const Store = {
     return added;
   },
 
+  /** Calcola, per un piano di rate, quale numero di rata (1-based) cade nel mese
+   * indicato: null se quel mese è fuori dal piano (prima dell'inizio o dopo l'ultima rata). */
+  installmentIndexForMonth(inst, key) {
+    const idx = absMonthIndex(key) - absMonthIndex(inst.startMonthKey);
+    if (idx < 0 || idx >= inst.totalInstallments) return null;
+    return idx + 1; // 1-based
+  },
+
+  seedInstallmentsInto(month, key) {
+    const installments = this.data.settings.installments || [];
+    installments.forEach((inst) => {
+      if (!month[inst.bucket]) return;
+      const n = this.installmentIndexForMonth(inst, key);
+      if (n === null) return;
+      month[inst.bucket].push({
+        id: uid(),
+        installmentId: inst.id,
+        installmentIndex: n,
+        installmentTotal: inst.totalInstallments,
+        amount: inst.amount,
+        note: `${inst.note} (${n}/${inst.totalInstallments})`,
+        category: inst.category,
+        date: new Date().toISOString()
+      });
+    });
+  },
+
+  /** Come applyMissingRecurring, ma per le rate: aggiunge al mese indicato solo
+   * le rate che dovrebbero cadere in quel mese e non sono già presenti. */
+  applyMissingInstallments(key) {
+    const month = this.getMonth(key);
+    const installments = this.data.settings.installments || [];
+    let added = 0;
+    installments.forEach((inst) => {
+      if (!month[inst.bucket]) return;
+      const n = this.installmentIndexForMonth(inst, key);
+      if (n === null) return;
+      const already = month[inst.bucket].some((i) => i.installmentId === inst.id);
+      if (already) return;
+      month[inst.bucket].push({
+        id: uid(),
+        installmentId: inst.id,
+        installmentIndex: n,
+        installmentTotal: inst.totalInstallments,
+        amount: inst.amount,
+        note: `${inst.note} (${n}/${inst.totalInstallments})`,
+        category: inst.category,
+        date: new Date().toISOString()
+      });
+      added++;
+    });
+    this.save();
+    return added;
+  },
+
+  addInstallmentPlan(item) {
+    this.data.settings.installments.push({ id: uid(), ...item });
+    this.save();
+  },
+
+  updateInstallmentPlan(id, patch) {
+    const item = this.data.settings.installments.find((i) => i.id === id);
+    if (item) Object.assign(item, patch);
+    this.save();
+  },
+
+  removeInstallmentPlan(id) {
+    this.data.settings.installments = this.data.settings.installments.filter((i) => i.id !== id);
+    this.save();
+  },
+
   addRecurring(item) {
     this.data.settings.recurringExpenses.push({ id: uid(), ...item });
     this.save();
@@ -183,6 +296,29 @@ const Store = {
 
   removeRecurring(id) {
     this.data.settings.recurringExpenses = this.data.settings.recurringExpenses.filter((r) => r.id !== id);
+    this.save();
+  },
+
+  /* --- Bonifico ricorrente tra conti (es. TR -> CA) --------------- */
+
+  setBonificoLabel(which, value) {
+    this.data.settings.bonifico[which] = value; // which: "fromLabel" | "toLabel"
+    this.save();
+  },
+
+  addBonificoItem(item) {
+    this.data.settings.bonifico.monthly.push({ id: uid(), ...item });
+    this.save();
+  },
+
+  updateBonificoItem(id, patch) {
+    const item = this.data.settings.bonifico.monthly.find((i) => i.id === id);
+    if (item) Object.assign(item, patch);
+    this.save();
+  },
+
+  removeBonificoItem(id) {
+    this.data.settings.bonifico.monthly = this.data.settings.bonifico.monthly.filter((i) => i.id !== id);
     this.save();
   },
 
@@ -231,6 +367,8 @@ const Store = {
       (parsed.settings && parsed.settings.categories) || {}
     );
     this.data.settings.recurringExpenses = (parsed.settings && parsed.settings.recurringExpenses) || [];
+    this.data.settings.bonifico = mergeBonificoSettings(parsed.settings);
+    this.data.settings.installments = (parsed.settings && parsed.settings.installments) || [];
     this.save();
   },
 
@@ -280,6 +418,16 @@ function computeMonthStats(month, settings) {
     pctNecessarie: totaleEntrate > 0 ? (totaleNecessarie / totaleEntrate) * 100 : 0,
     pctSvago: totaleEntrate > 0 ? (totaleSvago / totaleEntrate) * 100 : 0,
     pctRisparmi: totaleEntrate > 0 ? (risparmi / totaleEntrate) * 100 : 0
+  };
+}
+
+/** Calcola l'importo del bonifico ricorrente: somma delle spese mensili
+ * trasferite da un conto all'altro. */
+function computeBonifico(bonifico) {
+  const totalMonthly = sum(bonifico.monthly);
+  return {
+    totalMonthly,
+    total: totalMonthly
   };
 }
 

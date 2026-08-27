@@ -16,13 +16,23 @@ da capire, modificare e pubblicare gratis su GitHub Pages.
 - **Soglie di budget**: percentuali target modificabili (default 65/20/15),
   con indicatori visivi quando superi il massimo o non raggiungi il minimo di
   risparmio.
-- **Grafico a torta** della ripartizione del mese corrente.
+- **Grafico a torta** della ripartizione del mese corrente (necessarie,
+  investimenti, svago, risparmi).
 - **Storico**: grafico di andamento nel tempo (necessarie / svago / risparmi),
   medie storiche e tabella di tutti i mesi registrati (tocca una riga per
   aprire quel mese).
 - **Impostazioni**: percentuali di budget, base di calcolo delle soglie
   (stipendio da solo oppure stipendio + entrate extra), categorie
   personalizzabili, export/import di un backup JSON, reset dati.
+- **Spese fisse mensili**: configura una volta le spese ricorrenti (mutuo,
+  abbonamenti, ecc.) scegliendo se sono necessarie, svago o investimenti:
+  vengono inserite automaticamente in ogni mese aperto per la prima volta.
+- **Spese rateali**: per un acquisto pagato in più mensilità, imposta
+  importo, numero di rate e mese di partenza — vengono inserite da sole,
+  una al mese con l'indicazione "n/totale", e si fermano da sole alla fine.
+- **Bonifico ricorrente tra conti**: calcola l'importo da trasferire ogni
+  mese da un conto all'altro, sommando le spese mensili fisse pagate da
+  quel conto (es. mutuo, assicurazione, fibra).
 - **Pensata per iPhone**: layout mobile-first con tab bar in basso, supporto
   "Aggiungi a Home" (si comporta come un'app quasi a schermo intero) e
   dark mode automatica.

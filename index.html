@@ -158,6 +158,36 @@
     </div>
 
     <div class="card">
+      <h2>Spese rateali</h2>
+      <p class="hint">Per spese pagate in più rate (es. un acquisto in 5 mensilità): scegli mese di partenza
+        e numero di rate, e verranno inserite da sole, una al mese, con l'indicazione "n/totale" — poi si fermano.</p>
+      <ul class="item-list" id="list-installments"></ul>
+      <button class="add-btn accent" id="btn-add-installment">+ Aggiungi spesa rateale</button>
+      <div class="btn-row" style="margin-top:12px">
+        <button id="btn-apply-installments" class="btn secondary">Applica al mese corrente</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Bonifico ricorrente tra conti</h2>
+      <p class="hint">Calcola quanto trasferire ogni mese da un conto all'altro per coprire le spese fisse
+        mensili che paghi da lì.</p>
+
+      <div class="bonifico-total" id="bonifico-total-box">
+        <div class="bonifico-total-value" id="bonifico-total-value">€ 0,00</div>
+        <div class="bonifico-total-sub" id="bonifico-total-sub"></div>
+      </div>
+
+      <div class="split-form" style="margin-top:14px">
+        <label>Da conto <input type="text" id="bonifico-from-label" maxlength="20" /></label>
+        <label>A conto <input type="text" id="bonifico-to-label" maxlength="20" /></label>
+      </div>
+
+      <ul class="item-list" id="list-bonifico-monthly"></ul>
+      <button class="add-btn accent" data-bonifico-add="monthly">+ Aggiungi spesa mensile</button>
+    </div>
+
+    <div class="card">
       <h2>Backup dati</h2>
       <p class="hint">I dati sono salvati solo su questo dispositivo/browser. Esporta un backup regolarmente.</p>
       <div class="btn-row">
@@ -201,6 +231,13 @@
       <label>Categoria
         <select id="modal-category"></select>
       </label>
+      <div class="checkbox-row" id="modal-rateizza-row">
+        <input type="checkbox" id="modal-rateizza" />
+        <label for="modal-rateizza">Rateizza questa spesa</label>
+      </div>
+      <label id="modal-installments-row" class="hidden">Numero di rate (inclusa questa)
+        <input type="number" id="modal-installments-count" class="plain-number" min="2" max="60" step="1" value="2" />
+      </label>
       <div class="modal-actions">
         <button type="button" id="modal-delete" class="btn danger hidden">Elimina</button>
         <button type="button" id="modal-cancel" class="btn secondary">Annulla</button>
@@ -235,6 +272,64 @@
       <div class="modal-actions">
         <button type="button" id="recurring-delete" class="btn danger hidden">Elimina</button>
         <button type="button" id="recurring-cancel" class="btn secondary">Annulla</button>
+        <button type="submit" class="btn">Salva</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============ MODALE SPESA RATEALE ============ -->
+<div id="installment-modal" class="modal hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-sheet">
+    <h3 id="installment-modal-title">Aggiungi spesa rateale</h3>
+    <form id="installment-form">
+      <label>Tipo
+        <select id="installment-bucket">
+          <option value="necessarie">Spesa necessaria</option>
+          <option value="svago">Spesa per svago</option>
+          <option value="investimenti">Investimento</option>
+        </select>
+      </label>
+      <label>Importo per rata
+        <div class="inline-form"><span class="prefix">€</span><input type="number" id="installment-amount" inputmode="decimal" step="0.01" required /></div>
+      </label>
+      <label>Nota / descrizione
+        <input type="text" id="installment-note" placeholder="Es. Divano (rate)" required />
+      </label>
+      <label>Categoria
+        <select id="installment-category"></select>
+      </label>
+      <label>Numero di rate
+        <input type="number" id="installment-count" class="plain-number" min="2" max="60" step="1" required />
+      </label>
+      <label>Mese di partenza
+        <input type="month" id="installment-start" required />
+      </label>
+      <div class="modal-actions">
+        <button type="button" id="installment-delete" class="btn danger hidden">Elimina piano</button>
+        <button type="button" id="installment-cancel" class="btn secondary">Annulla</button>
+        <button type="submit" class="btn">Salva</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============ MODALE VOCE BONIFICO ============ -->
+<div id="bonifico-modal" class="modal hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-sheet">
+    <h3 id="bonifico-modal-title">Aggiungi spesa</h3>
+    <form id="bonifico-form">
+      <label>Importo
+        <div class="inline-form"><span class="prefix">€</span><input type="number" id="bonifico-amount" inputmode="decimal" step="0.01" required /></div>
+      </label>
+      <label>Nota / descrizione
+        <input type="text" id="bonifico-note" placeholder="Es. Mutuo" required />
+      </label>
+      <div class="modal-actions">
+        <button type="button" id="bonifico-delete" class="btn danger hidden">Elimina</button>
+        <button type="button" id="bonifico-cancel" class="btn secondary">Annulla</button>
         <button type="submit" class="btn">Salva</button>
       </div>
     </form>

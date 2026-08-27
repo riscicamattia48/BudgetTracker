@@ -112,7 +112,7 @@ function renderBucketList(bucket) {
       (item) => `
       <li data-id="${item.id}" data-bucket="${bucket}">
         <div>
-          <span class="item-note">${escapeHTML(item.note || "—")}${item.recurringId ? '<span class="fisso-badge">fisso</span>' : ""}</span>
+          <span class="item-note">${escapeHTML(item.note || "—")}${item.recurringId ? '<span class="fisso-badge">fisso</span>' : ""}${item.installmentId ? `<span class="rata-badge">${item.installmentIndex}/${item.installmentTotal}</span>` : ""}</span>
           <span class="item-category">${escapeHTML(item.category || "")}</span>
         </div>
         <span class="item-amount">${formatEUR(item.amount)}</span>
@@ -154,6 +154,14 @@ function openModal(bucket, itemId = null) {
   document.getElementById("modal-note").value = item ? item.note : "";
   if (item && item.category) select.value = item.category;
 
+  // "Rateizza" ha senso solo per una spesa nuova (necessarie/investimenti/svago),
+  // non quando si modifica una voce già esistente né per le entrate.
+  const rateizzaApplicabile = !isEdit && bucket !== "entrate";
+  document.getElementById("modal-rateizza-row").classList.toggle("hidden", !rateizzaApplicabile);
+  document.getElementById("modal-rateizza").checked = false;
+  document.getElementById("modal-installments-row").classList.add("hidden");
+  document.getElementById("modal-installments-count").value = 2;
+
   document.getElementById("modal-delete").classList.toggle("hidden", !isEdit);
   document.getElementById("item-modal").classList.remove("hidden");
   setTimeout(() => document.getElementById("modal-amount").focus(), 50);
@@ -168,6 +176,10 @@ function initModal() {
   document.getElementById("modal-cancel").addEventListener("click", closeModal);
   document.querySelector("#item-modal .modal-backdrop").addEventListener("click", closeModal);
 
+  document.getElementById("modal-rateizza").addEventListener("change", (e) => {
+    document.getElementById("modal-installments-row").classList.toggle("hidden", !e.target.checked);
+  });
+
   document.getElementById("item-form").addEventListener("submit", (e) => {
     e.preventDefault();
     const { bucket, itemId } = state.modal;
@@ -176,7 +188,20 @@ function initModal() {
     const category = document.getElementById("modal-category").value;
     if (!amount || amount <= 0 || !note) return;
 
-    if (itemId) {
+    const rateizzaRowVisibile = !document.getElementById("modal-rateizza-row").classList.contains("hidden");
+    const rateizza = rateizzaRowVisibile && document.getElementById("modal-rateizza").checked;
+
+    if (rateizza) {
+      const totalInstallments = parseInt(document.getElementById("modal-installments-count").value, 10);
+      if (!totalInstallments || totalInstallments < 2) {
+        alert("Il numero di rate deve essere almeno 2.");
+        return;
+      }
+      // Crea il piano di rate a partire dal mese corrente e inserisce subito la prima rata:
+      // riusa la stessa logica delle spese rateali configurate da Impostazioni.
+      Store.addInstallmentPlan({ bucket, amount, note, category, totalInstallments, startMonthKey: state.currentMonthKey });
+      Store.applyMissingInstallments(state.currentMonthKey);
+    } else if (itemId) {
       Store.updateItem(state.currentMonthKey, bucket, itemId, { amount, note, category });
     } else {
       Store.addItem(state.currentMonthKey, bucket, { amount, note, category });
@@ -309,6 +334,210 @@ function initRecurringModal() {
 }
 
 /* ---------------------------------------------------------------- */
+/* BONIFICO RICORRENTE TRA CONTI (impostazioni)                      */
+/* ---------------------------------------------------------------- */
+
+let bonificoModalState = { itemId: null };
+
+function renderBonifico() {
+  const b = Store.data.settings.bonifico;
+  const totals = computeBonifico(b);
+
+  document.getElementById("bonifico-from-label").value = b.fromLabel;
+  document.getElementById("bonifico-to-label").value = b.toLabel;
+
+  document.getElementById("bonifico-total-value").textContent = formatEUR(totals.total);
+  document.getElementById("bonifico-total-sub").textContent = `${b.fromLabel} → ${b.toLabel}`;
+
+  const items = b.monthly;
+  const list = document.getElementById("list-bonifico-monthly");
+  if (items.length === 0) {
+    list.innerHTML = `<li class="item-empty">Nessuna voce</li>`;
+  } else {
+    list.innerHTML = items
+      .map(
+        (item) => `
+        <li data-id="${item.id}">
+          <span class="item-note">${escapeHTML(item.note || "—")}</span>
+          <span class="item-amount">${formatEUR(item.amount)}</span>
+        </li>`
+      )
+      .join("");
+    list.querySelectorAll("li[data-id]").forEach((li) => {
+      li.addEventListener("click", () => openBonificoModal(li.dataset.id));
+    });
+  }
+}
+
+function openBonificoModal(itemId = null) {
+  bonificoModalState = { itemId };
+  const isEdit = !!itemId;
+  const item = isEdit ? Store.data.settings.bonifico.monthly.find((i) => i.id === itemId) : null;
+
+  document.getElementById("bonifico-modal-title").textContent = isEdit ? "Modifica spesa" : "Aggiungi spesa mensile";
+  document.getElementById("bonifico-amount").value = item ? item.amount : "";
+  document.getElementById("bonifico-note").value = item ? item.note : "";
+  document.getElementById("bonifico-delete").classList.toggle("hidden", !isEdit);
+  document.getElementById("bonifico-modal").classList.remove("hidden");
+  setTimeout(() => document.getElementById("bonifico-amount").focus(), 50);
+}
+
+function closeBonificoModal() {
+  document.getElementById("bonifico-modal").classList.add("hidden");
+  bonificoModalState = { itemId: null };
+}
+
+function initBonificoModal() {
+  document.querySelectorAll("[data-bonifico-add]").forEach((btn) => {
+    btn.addEventListener("click", () => openBonificoModal());
+  });
+  document.getElementById("bonifico-cancel").addEventListener("click", closeBonificoModal);
+  document.querySelector("#bonifico-modal .modal-backdrop").addEventListener("click", closeBonificoModal);
+
+  document.getElementById("bonifico-from-label").addEventListener("change", (e) => {
+    Store.setBonificoLabel("fromLabel", e.target.value.trim() || "TR");
+    renderBonifico();
+  });
+  document.getElementById("bonifico-to-label").addEventListener("change", (e) => {
+    Store.setBonificoLabel("toLabel", e.target.value.trim() || "CA");
+    renderBonifico();
+  });
+
+  document.getElementById("bonifico-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const { itemId } = bonificoModalState;
+    const amount = parseFloat(document.getElementById("bonifico-amount").value);
+    const note = document.getElementById("bonifico-note").value.trim();
+    if (!amount || amount <= 0 || !note) return;
+
+    if (itemId) {
+      Store.updateBonificoItem(itemId, { amount, note });
+    } else {
+      Store.addBonificoItem({ amount, note });
+    }
+    closeBonificoModal();
+    renderBonifico();
+  });
+
+  document.getElementById("bonifico-delete").addEventListener("click", () => {
+    const { itemId } = bonificoModalState;
+    if (!itemId) return;
+    if (!confirm("Eliminare questa voce dal calcolo del bonifico?")) return;
+    Store.removeBonificoItem(itemId);
+    closeBonificoModal();
+    renderBonifico();
+  });
+}
+
+/* ---------------------------------------------------------------- */
+/* SPESE RATEALI (impostazioni)                                      */
+/* ---------------------------------------------------------------- */
+
+let installmentModalState = { itemId: null };
+
+function renderInstallmentsList() {
+  const list = document.getElementById("list-installments");
+  const items = Store.data.settings.installments || [];
+  if (items.length === 0) {
+    list.innerHTML = `<li class="item-empty">Nessuna spesa rateale configurata</li>`;
+    return;
+  }
+  list.innerHTML = items
+    .map((item) => {
+      const endKey = shiftMonthKey(item.startMonthKey, item.totalInstallments - 1);
+      return `
+      <li data-id="${item.id}">
+        <div>
+          <span class="item-note">${escapeHTML(item.note || "—")}</span>
+          <span class="item-category">${RECURRING_BUCKET_LABELS[item.bucket] || item.bucket} · ${item.totalInstallments} rate da ${monthLabel(item.startMonthKey)} a ${monthLabel(endKey)}</span>
+        </div>
+        <span class="item-amount">${formatEUR(item.amount)}</span>
+      </li>`;
+    })
+    .join("");
+  list.querySelectorAll("li[data-id]").forEach((li) => {
+    li.addEventListener("click", () => openInstallmentModal(li.dataset.id));
+  });
+}
+
+function openInstallmentModal(itemId = null) {
+  installmentModalState = { itemId };
+  const isEdit = !!itemId;
+  const item = isEdit ? Store.data.settings.installments.find((i) => i.id === itemId) : null;
+
+  document.getElementById("installment-modal-title").textContent = isEdit ? "Modifica spesa rateale" : "Aggiungi spesa rateale";
+
+  const bucketSelect = document.getElementById("installment-bucket");
+  bucketSelect.value = item ? item.bucket : "necessarie";
+  populateInstallmentCategorySelect(bucketSelect.value, item ? item.category : null);
+
+  document.getElementById("installment-amount").value = item ? item.amount : "";
+  document.getElementById("installment-note").value = item ? item.note : "";
+  document.getElementById("installment-count").value = item ? item.totalInstallments : 2;
+  document.getElementById("installment-start").value = item ? item.startMonthKey : state.currentMonthKey;
+
+  document.getElementById("installment-delete").classList.toggle("hidden", !isEdit);
+  document.getElementById("installment-modal").classList.remove("hidden");
+  setTimeout(() => document.getElementById("installment-amount").focus(), 50);
+}
+
+function populateInstallmentCategorySelect(bucket, selected) {
+  const select = document.getElementById("installment-category");
+  select.innerHTML = categoriesForBucket(bucket)
+    .map((c) => `<option value="${escapeHTML(c)}">${escapeHTML(c)}</option>`)
+    .join("");
+  if (selected) select.value = selected;
+}
+
+function closeInstallmentModal() {
+  document.getElementById("installment-modal").classList.add("hidden");
+  installmentModalState = { itemId: null };
+}
+
+function initInstallmentModal() {
+  document.getElementById("btn-add-installment").addEventListener("click", () => openInstallmentModal());
+  document.getElementById("installment-cancel").addEventListener("click", closeInstallmentModal);
+  document.querySelector("#installment-modal .modal-backdrop").addEventListener("click", closeInstallmentModal);
+
+  document.getElementById("installment-bucket").addEventListener("change", (e) => {
+    populateInstallmentCategorySelect(e.target.value);
+  });
+
+  document.getElementById("installment-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const bucket = document.getElementById("installment-bucket").value;
+    const amount = parseFloat(document.getElementById("installment-amount").value);
+    const note = document.getElementById("installment-note").value.trim();
+    const category = document.getElementById("installment-category").value;
+    const totalInstallments = parseInt(document.getElementById("installment-count").value, 10);
+    const startMonthKey = document.getElementById("installment-start").value;
+    if (!amount || amount <= 0 || !note || !totalInstallments || totalInstallments < 2 || !startMonthKey) return;
+
+    const payload = { bucket, amount, note, category, totalInstallments, startMonthKey };
+    if (installmentModalState.itemId) {
+      Store.updateInstallmentPlan(installmentModalState.itemId, payload);
+    } else {
+      Store.addInstallmentPlan(payload);
+    }
+    closeInstallmentModal();
+    renderInstallmentsList();
+  });
+
+  document.getElementById("installment-delete").addEventListener("click", () => {
+    if (!installmentModalState.itemId) return;
+    if (!confirm("Eliminare questo piano di rate? Le rate già inserite nei mesi non verranno rimosse.")) return;
+    Store.removeInstallmentPlan(installmentModalState.itemId);
+    closeInstallmentModal();
+    renderInstallmentsList();
+  });
+
+  document.getElementById("btn-apply-installments").addEventListener("click", () => {
+    const added = Store.applyMissingInstallments(state.currentMonthKey);
+    alert(added === 0 ? "Nessuna rata da aggiungere per questo mese." : `Aggiunte ${added} rate al mese corrente (${monthLabel(state.currentMonthKey)}).`);
+  });
+}
+
+/* ---------------------------------------------------------------- */
 /* STORICO                                                            */
 /* ---------------------------------------------------------------- */
 
@@ -404,6 +633,8 @@ function renderImpostazioni() {
   checkSplitSum();
   renderCategoriesEditor();
   renderRecurringList();
+  renderInstallmentsList();
+  renderBonifico();
 }
 
 function checkSplitSum() {
@@ -567,6 +798,8 @@ function init() {
   initMonthSwitcher();
   initModal();
   initRecurringModal();
+  initInstallmentModal();
+  initBonificoModal();
   initSettingsHandlers();
 
   registerChartRedraw(() => {
