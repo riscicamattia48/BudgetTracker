@@ -930,9 +930,14 @@ function computeAnalisiOverview(selectedYear) {
 
   const totaleInvestito = perMonth.reduce((acc, m) => acc + m.stats.investimenti, 0);
 
+  // Solo necessarie + svago: gli investimenti sono un accantonamento, non una
+  // "spesa" in senso stretto, quindi non entrano né nel numeratore né nel
+  // denominatore di questa percentuale (altrimenti un piano fisso di
+  // investimento gonfierebbe il valore facendolo divergere dalla somma delle
+  // sole spese fisse configurate in Impostazioni per necessarie/svago).
   const curMonth = monthOrEmpty(realCurrentKey);
   let totaleMeseCorrente = 0, fissoMeseCorrente = 0;
-  ["necessarie", "svago", "investimenti"].forEach((bucket) => {
+  ["necessarie", "svago"].forEach((bucket) => {
     (curMonth[bucket] || []).forEach((item) => {
       const amt = Number(item.amount) || 0;
       totaleMeseCorrente += amt;

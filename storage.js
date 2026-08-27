@@ -137,6 +137,41 @@ function ensureItemIds(months) {
   return fixed;
 }
 
+/** Ricollega alle spese fisse le voci "orfane": mesi creati prima che una spesa
+ * fissa fosse taggata con recurringId (o backup più vecchi di questa funzione)
+ * possono contenere voci che corrispondono a una spesa fissa per nota+sezione+
+ * importo ma senza il collegamento. Senza recurringId quelle voci non vengono
+ * riconosciute come "fisse" nella card Analisi, anche se lo sono. Qui si
+ * confronta nota + bucket + importo (mai la categoria, che l'utente può aver
+ * modificato nel tempo restando comunque la stessa spesa fissa) e si assegna
+ * il recurringId quando c'è una corrispondenza univoca. Ritorna true se ha
+ * dovuto ricollegare almeno una voce. */
+function linkLegacyRecurringIds(months, recurringExpenses) {
+  const list = recurringExpenses || [];
+  if (!list.length) return false;
+  const byKey = new Map();
+  list.forEach((r) => {
+    const key = r.bucket + "|" + r.note;
+    // Se più spese fisse condividono nota+bucket la corrispondenza è ambigua: si salta.
+    if (byKey.has(key)) byKey.set(key, null);
+    else byKey.set(key, r);
+  });
+  let fixed = false;
+  Object.values(months || {}).forEach((month) => {
+    ["investimenti", "necessarie", "svago"].forEach((bucket) => {
+      (month[bucket] || []).forEach((item) => {
+        if (item.recurringId || item.installmentId) return;
+        const match = byKey.get(bucket + "|" + item.note);
+        if (!match) return;
+        if (Math.abs((Number(item.amount) || 0) - (Number(match.amount) || 0)) > 0.01) return;
+        item.recurringId = match.id;
+        fixed = true;
+      });
+    });
+  });
+  return fixed;
+}
+
 /** Fonde le impostazioni del bonifico salvate con i default, campo per campo,
  * così un backup vecchio (senza questo campo) o parziale non rompe nulla. */
 function mergeBonificoSettings(parsedSettings) {
@@ -174,7 +209,9 @@ const Store = {
       this.data.settings.bonifico = mergeBonificoSettings(parsed.settings);
       this.data.settings.installments = (parsed.settings && parsed.settings.installments) || [];
       this.data.months = parsed.months || {};
-      if (ensureItemIds(this.data.months)) this.save();
+      const fixedIds = ensureItemIds(this.data.months);
+      const fixedRecurring = linkLegacyRecurringIds(this.data.months, this.data.settings.recurringExpenses);
+      if (fixedIds || fixedRecurring) this.save();
     } catch (e) {
       console.error("Dati corrotti, ripristino i valori di default", e);
       this.data = structuredClone(DEFAULT_DATA);
@@ -533,6 +570,7 @@ const Store = {
     this.data.settings.bonifico = mergeBonificoSettings(parsed.settings);
     this.data.settings.installments = (parsed.settings && parsed.settings.installments) || [];
     ensureItemIds(this.data.months);
+    linkLegacyRecurringIds(this.data.months, this.data.settings.recurringExpenses);
     this.save();
   },
 
