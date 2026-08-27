@@ -589,11 +589,6 @@ function initInstallmentModal() {
     renderInstallmentsList();
   });
 
-  document.getElementById("btn-apply-installments").addEventListener("click", () => {
-    const added = Store.applyMissingInstallmentsToAllMonths();
-    alert(added === 0 ? "Nessuna rata da aggiungere nei mesi già aperti." : `Aggiunte ${added} rate mancanti nei mesi già aperti.`);
-    renderRiepilogo();
-  });
 }
 
 /* ---------------------------------------------------------------- */

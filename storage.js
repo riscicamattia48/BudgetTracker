@@ -441,31 +441,47 @@ const Store = {
 
   /** Suggerimenti di autocompletamento per il campo "nota" di una spesa: raccoglie
    * le note già usate in quel bucket nei mesi passati (spogliandole dal suffisso
-   * "(n/tot)" delle rate) e restituisce al massimo MAX_SUGGESTIONS voci, privilegiando
-   * quelle che iniziano con la query digitata (stesse iniziali) e, tra quelle, le più
-   * usate in passato — così digitando una sola lettera comune (es. "L") non si apre
-   * un elenco lungo, ma solo le 2-3 spese più frequenti con quell'iniziale. */
+   * "(n/tot)" delle rate), le raggruppa senza distinguere maiuscole/minuscole (così
+   * "Bolletta luce" e "bolletta Luce" contano come la stessa voce) e restituisce al
+   * massimo MAX_SUGGESTIONS voci che INIZIANO con quanto digitato, ordinate per
+   * frequenza d'uso decrescente — così digitando una sola lettera comune (es. "L")
+   * non si apre un elenco lungo, ma solo le 2-3 spese più frequenti con quell'iniziale. */
   getNoteSuggestions(bucket, query) {
     const MAX_SUGGESTIONS = 3;
     const q = (query || "").trim().toLowerCase();
-    const freq = new Map();
+    // Raggruppa per chiave case-insensitive: per ogni gruppo tiene il conteggio totale
+    // e, tra le varianti di maiuscole/minuscole usate, quella più frequente da mostrare.
+    const groups = new Map(); // lowerKey -> { total, variants: Map<original, count> }
     Object.values(this.data.months || {}).forEach((month) => {
       (month[bucket] || []).forEach((item) => {
         if (!item.note) return;
         const note = item.note.replace(/\s*\(\d+\/\d+\)\s*$/, "").trim();
         if (!note) return;
-        freq.set(note, (freq.get(note) || 0) + 1);
+        const key = note.toLowerCase();
+        if (!groups.has(key)) groups.set(key, { total: 0, variants: new Map() });
+        const g = groups.get(key);
+        g.total++;
+        g.variants.set(note, (g.variants.get(note) || 0) + 1);
       });
     });
-    let list = Array.from(freq.keys());
-    if (q) list = list.filter((n) => n.toLowerCase().includes(q));
-    list.sort((a, b) => {
-      const aStarts = a.toLowerCase().startsWith(q) ? 0 : 1;
-      const bStarts = b.toLowerCase().startsWith(q) ? 0 : 1;
-      if (aStarts !== bStarts) return aStarts - bStarts;
-      return freq.get(b) - freq.get(a);
-    });
-    return list.slice(0, MAX_SUGGESTIONS);
+
+    let entries = Array.from(groups.entries())
+      .filter(([key]) => !q || key.startsWith(q))
+      .map(([key, g]) => {
+        // variante da mostrare: quella usata più spesso tra le diverse capitalizzazioni
+        let display = key;
+        let bestCount = -1;
+        g.variants.forEach((count, variant) => {
+          if (count > bestCount) {
+            bestCount = count;
+            display = variant;
+          }
+        });
+        return { display, total: g.total };
+      });
+
+    entries.sort((a, b) => b.total - a.total);
+    return entries.slice(0, MAX_SUGGESTIONS).map((e) => e.display);
   },
 
   exportJSON() {
