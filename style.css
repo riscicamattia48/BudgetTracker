@@ -182,10 +182,11 @@ html, body {
   text-transform: uppercase;
   letter-spacing: 0.02em;
   opacity: 0.85;
-  /* altezza fissa a 2 righe: così le etichette che vanno a capo (es. "Spese
-     necessarie") e quelle che stanno su una riga sola (es. "Media svago")
-     occupano lo stesso spazio, e i valori sotto restano allineati. */
-  min-height: 2.5em;
+  /* altezza fissa a 3 righe: così le etichette più lunghe che vanno a capo
+     due/tre volte (es. "Spese necessarie + investimenti") e quelle che stanno
+     su una riga sola (es. "Media svago") occupano lo stesso spazio, e i
+     valori sotto restano allineati indipendentemente dalla card. */
+  min-height: 3.75em;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -400,6 +401,9 @@ html, body {
 .history-table th:first-child, .history-table td:first-child { text-align: left; border-left: none; white-space: normal; }
 .history-table th { text-align: center; }
 .history-table th:first-child { text-align: left; }
+/* Etichette lunghe come "Necessarie + investimenti": vanno a capo invece di
+   allargare la colonna, così la tabella resta leggibile su schermi stretti. */
+.history-table th.wrap-header { white-space: normal; line-height: 1.2; }
 .history-table tbody tr:nth-child(even) { background: var(--bg); }
 .history-table tbody tr:active { background: var(--border); }
 
@@ -413,6 +417,15 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+/* Nella riga "Ripartizione budget" un'etichetta più lunga (es. "Necessarie +
+   investimenti") può andare a capo mentre le altre restano su una riga sola:
+   riservando qui uno spazio fisso di 2 righe, gli input sotto restano allineati
+   indipendentemente da quanto testo contiene ciascuna etichetta. */
+.budget-split label .split-label-text {
+  display: block;
+  min-height: 2.4em;
+  line-height: 1.2;
 }
 .split-form input {
   border: 1px solid var(--border);

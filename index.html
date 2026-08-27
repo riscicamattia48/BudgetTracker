@@ -114,7 +114,7 @@
       <h2>Andamento nel tempo</h2>
       <canvas id="trend-chart" class="trend-canvas" height="220"></canvas>
       <div class="legend-row">
-        <span><i class="dot necessarie"></i> Spese necessarie</span>
+        <span><i class="dot necessarie"></i> Spese necessarie + investimenti</span>
         <span><i class="dot svago"></i> Spese svago</span>
         <span><i class="dot risparmi"></i> Risparmi</span>
       </div>
@@ -133,7 +133,7 @@
             <tr>
               <th>Mese</th>
               <th>Entrate</th>
-              <th>Necessarie</th>
+              <th class="wrap-header" title="Spese necessarie + investimenti">Necessarie<br />+ investimenti</th>
               <th>Svago</th>
               <th>Risparmi</th>
             </tr>
@@ -234,10 +234,10 @@
       </div>
       <div class="collapsible-body">
         <p class="hint">Percentuali target su cui vengono calcolate le soglie massime/minime (devono sommare a 100).</p>
-        <div class="split-form">
-          <label>Necessarie <input type="number" id="split-necessarie" min="0" max="100" /> %</label>
-          <label>Svago <input type="number" id="split-svago" min="0" max="100" /> %</label>
-          <label>Risparmi <input type="number" id="split-risparmi" min="0" max="100" /> %</label>
+        <div class="split-form budget-split">
+          <label><span class="split-label-text">Necessarie + investimenti</span> <input type="number" id="split-necessarie" min="0" max="100" /> %</label>
+          <label><span class="split-label-text">Svago</span> <input type="number" id="split-svago" min="0" max="100" /> %</label>
+          <label><span class="split-label-text">Risparmi</span> <input type="number" id="split-risparmi" min="0" max="100" /> %</label>
         </div>
         <div id="split-warning" class="warning hidden">⚠️ Le percentuali devono sommare a 100.</div>
 

@@ -62,7 +62,7 @@ function renderRiepilogo() {
   document.getElementById("input-stipendio").value = month.stipendio || "";
 
   document.getElementById("summary-grid").innerHTML =
-    summaryCellHTML("necessarie", "Spese necessarie", stats.totaleNecessarie, stats.sogliaNecessarie, false) +
+    summaryCellHTML("necessarie", "Spese necessarie + investimenti", stats.totaleNecessarie, stats.sogliaNecessarie, false) +
     summaryCellHTML("svago", "Spese per svago", stats.totaleSvago, stats.sogliaSvago, false) +
     summaryCellHTML("risparmi", "Risparmi del mese", stats.risparmi, stats.sogliaRisparmiMin, true);
 
@@ -707,7 +707,7 @@ function renderStorico() {
 
   document.getElementById("averages-grid").innerHTML = `
     <div class="summary-cell necessarie">
-      <div class="label">Media necessarie</div>
+      <div class="label">Media necessarie + investimenti</div>
       <div class="value">${formatEUR(avgNecessarie)}</div>
     </div>
     <div class="summary-cell svago">
@@ -930,14 +930,13 @@ function computeAnalisiOverview(selectedYear) {
 
   const totaleInvestito = perMonth.reduce((acc, m) => acc + m.stats.investimenti, 0);
 
-  // Solo necessarie + svago: gli investimenti sono un accantonamento, non una
-  // "spesa" in senso stretto, quindi non entrano né nel numeratore né nel
-  // denominatore di questa percentuale (altrimenti un piano fisso di
-  // investimento gonfierebbe il valore facendolo divergere dalla somma delle
-  // sole spese fisse configurate in Impostazioni per necessarie/svago).
+  // Come in tutto il resto dell'app, gli investimenti sono conteggiati insieme
+  // alle spese necessarie (vedi computeMonthStats: totaleNecessarie = necessarie
+  // + investimenti): anche qui entrano sia nel numeratore che nel denominatore,
+  // per restare coerenti con "Spese necessarie + investimenti" mostrato altrove.
   const curMonth = monthOrEmpty(realCurrentKey);
   let totaleMeseCorrente = 0, fissoMeseCorrente = 0;
-  ["necessarie", "svago"].forEach((bucket) => {
+  ["necessarie", "investimenti", "svago"].forEach((bucket) => {
     (curMonth[bucket] || []).forEach((item) => {
       const amt = Number(item.amount) || 0;
       totaleMeseCorrente += amt;
