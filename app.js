@@ -834,7 +834,10 @@ let analisiState = {
   to: null,
   query: "",
   category: "",
-  tipi: new Set(ANALISI_BUCKETS)
+  tipi: new Set(ANALISI_BUCKETS),
+  // Nomi (note) delle voci il cui gruppo è espanso nell'elenco in fondo alla
+  // scheda: persiste tra un render e l'altro finché non si "Reimposta filtri".
+  expandedGroups: new Set()
 };
 
 /* Filtro di default quando si apre la scheda senza aver ancora toccato nulla:
@@ -1113,31 +1116,84 @@ function renderAnalisiBreakdown(items) {
     .join("");
 }
 
+/* Raggruppa le voci filtrate per nome della transazione (nota): più
+ * occorrenze della stessa spesa/entrata (es. "Lidl" ripetuto ogni mese)
+ * diventano una sola riga col totale, invece di ripetere lo stesso nome
+ * decine di volte nell'elenco. */
+function groupAnalisiItemsByNote(items) {
+  const map = new Map();
+  items.forEach((item) => {
+    const key = item.note || "—";
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(item);
+  });
+  return Array.from(map.entries()).map(([note, groupItems]) => ({
+    note,
+    items: groupItems,
+    total: groupItems.reduce((acc, i) => acc + analisiSignedAmount(i), 0)
+  }));
+}
+
 function renderAnalisiList(items) {
   const list = document.getElementById("analisi-item-list");
   if (items.length === 0) {
     list.innerHTML = `<li class="item-empty">Nessuna voce corrisponde ai filtri</li>`;
     return;
   }
-  // Più recenti prima: per mese decrescente, e a parità di mese nell'ordine in
-  // cui compaiono nel bucket (che è già l'ordine di inserimento).
-  const sorted = items.slice().sort((a, b) => b.monthKey.localeCompare(a.monthKey));
-  list.innerHTML = sorted
-    .map((item) => {
-      const signed = analisiSignedAmount(item);
+
+  const groups = groupAnalisiItemsByNote(items);
+  // Spese (totale negativo) dalla più grande alla più piccola, poi guadagni
+  // (totale positivo) dal più piccolo al più grande: equivale a ordinare per
+  // totale crescente (il valore più negativo, cioè la spesa più grande, viene
+  // prima di tutti; i guadagni, positivi, restano in coda dal più piccolo).
+  groups.sort((a, b) => a.total - b.total);
+
+  list.innerHTML = groups
+    .map((g) => {
+      const isOpen = analisiState.expandedGroups.has(g.note);
+      const countBadge = g.items.length > 1 ? `<span class="analisi-group-count">× ${g.items.length}</span>` : "";
+      // Righe figlie ordinate dalle più recenti: mostrano le stesse info di
+      // prima (tipo, categoria, mese) per ogni occorrenza del gruppo, visibili
+      // solo quando il gruppo è espanso.
+      const childrenHTML = isOpen
+        ? `<ul class="analisi-group-children">${g.items
+            .slice()
+            .sort((a, b) => b.monthKey.localeCompare(a.monthKey))
+            .map((item) => {
+              const signed = analisiSignedAmount(item);
+              return `
+              <li data-id="${item.id}" data-bucket="${item.bucket}" data-month="${item.monthKey}" ${item.isStipendio ? 'data-stipendio="true"' : ""}>
+                <span class="item-category">${ANALISI_BUCKET_LABELS[item.bucket]} · ${escapeHTML(item.category || "")} · ${monthLabel(item.monthKey)}</span>
+                <span class="item-amount ${signed >= 0 ? "good" : "bad"}">${formatEUR(signed)}</span>
+              </li>`;
+            })
+            .join("")}</ul>`
+        : "";
       return `
-      <li data-id="${item.id}" data-bucket="${item.bucket}" data-month="${item.monthKey}" ${item.isStipendio ? 'data-stipendio="true"' : ""}>
-        <div>
-          <span class="item-note">${escapeHTML(item.note || "—")}</span>
-          <span class="item-category">${ANALISI_BUCKET_LABELS[item.bucket]} · ${escapeHTML(item.category || "")} · ${monthLabel(item.monthKey)}</span>
+      <li class="analisi-group ${isOpen ? "expanded" : ""}" data-note="${escapeHTML(g.note)}">
+        <div class="analisi-group-header">
+          <span class="item-note">${escapeHTML(g.note)}</span>
+          ${countBadge}
+          <span class="item-amount ${g.total >= 0 ? "good" : "bad"}">${formatEUR(g.total)}</span>
+          <span class="chevron">⌄</span>
         </div>
-        <span class="item-amount ${signed >= 0 ? "good" : "bad"}">${formatEUR(signed)}</span>
+        ${childrenHTML}
       </li>`;
     })
     .join("");
 
-  list.querySelectorAll("li[data-id]").forEach((li) => {
-    li.addEventListener("click", () => {
+  list.querySelectorAll(".analisi-group-header").forEach((header) => {
+    header.addEventListener("click", () => {
+      const note = header.closest(".analisi-group").dataset.note;
+      if (analisiState.expandedGroups.has(note)) analisiState.expandedGroups.delete(note);
+      else analisiState.expandedGroups.add(note);
+      renderAnalisiList(items);
+    });
+  });
+
+  list.querySelectorAll(".analisi-group-children li[data-id]").forEach((li) => {
+    li.addEventListener("click", (e) => {
+      e.stopPropagation();
       state.currentMonthKey = li.dataset.month;
       Store.ensureMonth(state.currentMonthKey);
       switchView("riepilogo");
@@ -1164,30 +1220,39 @@ function renderAnalisi() {
   });
 
   const items = filteredAnalisiItems();
-  // Segno con entrate positive e uscite negative (vedi analisiSignedAmount):
-  // così sommare voci di tipo diverso dà un saldo netto reale invece di
-  // trattarle tutte come se fossero dello stesso segno. Con solo spese
-  // selezionate il totale scende sotto zero; includendo le entrate risale.
-  const amounts = items.map((i) => analisiSignedAmount(i));
-  const totale = amounts.reduce((a, b) => a + b, 0);
-  const count = items.length;
-  const media = count > 0 ? totale / count : 0;
-  const mediana = median(amounts);
-  const max = count > 0 ? Math.max(...amounts) : 0;
-  const min = count > 0 ? Math.min(...amounts) : 0;
+  const totalCount = items.length;
 
-  document.getElementById("analisi-summary-line").textContent = describeAnalisiFilters(count);
+  // "Totale" resta il saldo netto su tutte le voci filtrate (entrate incluse,
+  // segno opposto per tipo — vedi analisiSignedAmount): con solo spese
+  // selezionate scende sotto zero, includendo le entrate risale.
+  const totale = items.reduce((acc, i) => acc + analisiSignedAmount(i), 0);
+
+  // N. transazioni, Media, Mediana e Spesa più alta/bassa contano solo le
+  // spese (bucket diverso da "entrate"): un'entrata non è una "transazione
+  // di spesa" e mischiarla falsava questi indicatori.
+  const speseItems = items.filter((i) => i.bucket !== "entrate");
+  const speseAmounts = speseItems.map((i) => analisiSignedAmount(i)); // sempre <= 0
+  const speseCount = speseItems.length;
+  const media = speseCount > 0 ? speseAmounts.reduce((a, b) => a + b, 0) / speseCount : 0;
+  const mediana = median(speseAmounts);
+  // Gli importi delle spese sono negativi: la spesa più "alta" (grande) è
+  // quindi il valore più negativo (min), quella più "bassa" (piccola) è
+  // quello più vicino allo zero (max) — non il contrario.
+  const speseAlta = speseCount > 0 ? Math.min(...speseAmounts) : 0;
+  const speseBassa = speseCount > 0 ? Math.max(...speseAmounts) : 0;
+
+  document.getElementById("analisi-summary-line").textContent = describeAnalisiFilters(totalCount);
   document.getElementById("analisi-kpi-grid").innerHTML =
     analisiKpiCellHTML("Totale", formatEUR(totale), { tone: totale >= 0 ? "good" : "bad" }) +
     analisiKpiCellHTML("Media per transazione", formatEUR(media), { tone: media >= 0 ? "good" : "bad" }) +
     analisiKpiCellHTML("Mediana per transazione", formatEUR(mediana), { tone: mediana >= 0 ? "good" : "bad" }) +
-    analisiKpiCellHTML("N. transazioni", String(count)) +
-    analisiKpiCellHTML("Più alta", formatEUR(max), { tone: max >= 0 ? "good" : "bad" }) +
-    analisiKpiCellHTML("Più bassa", formatEUR(min), { tone: min >= 0 ? "good" : "bad" });
+    analisiKpiCellHTML("N. transazioni", String(speseCount)) +
+    analisiKpiCellHTML("Spesa più alta", formatEUR(speseAlta), { tone: speseAlta >= 0 ? "good" : "bad" }) +
+    analisiKpiCellHTML("Spesa più bassa", formatEUR(speseBassa), { tone: speseBassa >= 0 ? "good" : "bad" });
 
   renderAnalisiBreakdown(items);
   renderAnalisiList(items);
-  document.getElementById("analisi-count").textContent = String(count);
+  document.getElementById("analisi-count").textContent = String(totalCount);
 }
 
 function initAnalisi() {
@@ -1230,7 +1295,7 @@ function initAnalisi() {
   });
   document.getElementById("btn-analisi-reset").addEventListener("click", () => {
     const r = defaultAnalisiRange();
-    analisiState = { from: r.from, to: r.to, query: "", category: "", tipi: new Set(ANALISI_BUCKETS) };
+    analisiState = { from: r.from, to: r.to, query: "", category: "", tipi: new Set(ANALISI_BUCKETS), expandedGroups: new Set() };
     renderAnalisi();
   });
 }
