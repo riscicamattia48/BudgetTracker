@@ -711,6 +711,17 @@ function initInstallmentModal() {
 /* STORICO                                                            */
 /* ---------------------------------------------------------------- */
 
+/* Come monthLabel(), ma con il mese abbreviato alle prime 3 lettere (es.
+ * "Feb 2026" invece di "Febbraio 2026"): usato solo nella colonna "Mese"
+ * della tabella storico, dove il nome completo di mesi come "Febbraio"
+ * andava a capo con l'anno. */
+function monthLabelShort(key) {
+  const [y, m] = key.split("-").map(Number);
+  const d = new Date(y, m - 1, 1);
+  const label = d.toLocaleDateString("it-IT", { month: "short", year: "numeric" });
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
 function renderStorico() {
   // Esclude i mesi futuri (oltre il mese corrente reale, non quello eventualmente
   // aperto nel Riepilogo): possono essere stati creati per sbaglio/curiosità
@@ -776,7 +787,7 @@ function renderStorico() {
     .map(
       ({ key, stats }) => `
       <tr data-key="${key}">
-        <td>${monthLabel(key)}</td>
+        <td>${monthLabelShort(key)}</td>
         <td>${formatEUR(stats.totaleEntrate)}</td>
         <td>${formatEUR(stats.totaleNecessarie)}</td>
         <td>${formatEUR(stats.totaleSvago)}</td>
