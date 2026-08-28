@@ -296,6 +296,11 @@ html, body {
 .item-note { font-size: 14px; }
 .item-category { display: block; font-size: 11.5px; color: var(--muted); margin-top: 1px; }
 .item-amount { font-weight: 600; font-size: 14px; white-space: nowrap; margin-left: 10px; }
+/* Usati solo nell'elenco di Analisi, dove voci di tipo diverso (entrate e
+   uscite) compaiono fianco a fianco: il colore rende subito visibile il
+   segno, coerente con .summary-cell .value.good/.bad. */
+.item-amount.good { color: var(--good); }
+.item-amount.bad { color: var(--danger); }
 .item-empty { padding: 14px 16px; color: var(--muted); font-size: 13px; font-style: italic; }
 
 .add-btn {
@@ -528,6 +533,8 @@ html, body {
   margin-bottom: 4px;
 }
 .breakdown-label .breakdown-value { font-weight: 600; }
+.breakdown-label .breakdown-value.good { color: var(--good); }
+.breakdown-label .breakdown-value.bad { color: var(--danger); }
 
 #categories-editor .cat-group { margin-bottom: 14px; }
 #categories-editor .cat-group h4 {

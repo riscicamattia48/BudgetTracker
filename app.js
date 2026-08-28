@@ -837,7 +837,13 @@ function defaultAnalisiRange() {
 /* Appiattisce tutte le voci di tutti i mesi in un unico elenco, ciascuna
  * arricchita con "bucket" e "monthKey" (informazioni implicite nella
  * struttura a mesi/bucket dei dati, ma necessarie qui per filtrare/mostrare
- * voci provenienti da mesi e tipi diversi fianco a fianco). */
+ * voci provenienti da mesi e tipi diversi fianco a fianco).
+ *
+ * Lo stipendio non è una voce in un array come le altre, ma un singolo
+ * valore sul mese (month.stipendio): qui viene rappresentato come una voce
+ * "entrata" sintetica (bucket "entrate", categoria "Stipendio") così da
+ * essere incluso in Analisi con le stesse regole di filtro/segno delle
+ * altre entrate — altrimenti resterebbe sempre escluso dai totali. */
 function getAllItemsFlat() {
   const out = [];
   Object.keys(Store.data.months).forEach((mk) => {
@@ -847,13 +853,36 @@ function getAllItemsFlat() {
         out.push(Object.assign({}, item, { bucket, monthKey: mk }));
       });
     });
+    const stipendio = Number(month.stipendio) || 0;
+    if (stipendio > 0) {
+      out.push({
+        id: `stipendio-${mk}`,
+        amount: stipendio,
+        note: "Stipendio",
+        category: "Stipendio",
+        bucket: "entrate",
+        monthKey: mk,
+        isStipendio: true
+      });
+    }
   });
   return out;
+}
+
+/* Segno di una voce ai fini dei totali di Analisi: le entrate (bucket
+ * "entrate", stipendio incluso) contano in positivo, tutto il resto
+ * (necessarie/svago/investimenti) sono uscite e contano in negativo — così
+ * sommare voci di tipo diverso dà un saldo netto invece di un totale privo
+ * di senso, e filtrando solo le spese il totale scende sotto zero. */
+function analisiSignedAmount(item) {
+  const amt = Number(item.amount) || 0;
+  return item.bucket === "entrate" ? amt : -amt;
 }
 
 function analisiCategoriesForSelectedTipi() {
   const set = new Set();
   analisiState.tipi.forEach((b) => categoriesForBucket(b).forEach((c) => set.add(c)));
+  if (analisiState.tipi.has("entrate")) set.add("Stipendio");
   return Array.from(set).sort((a, b) => a.localeCompare(b, "it", { sensitivity: "base" }));
 }
 
@@ -1047,22 +1076,27 @@ function renderAnalisiBreakdown(items) {
     container.innerHTML = `<p class="hint">Nessuna voce corrisponde ai filtri.</p>`;
     return;
   }
+  // Somma con segno (entrate positive, uscite negative, vedi
+  // analisiSignedAmount): ordinamento e larghezza barra usano il valore
+  // assoluto (altrimenti una categoria di entrate finirebbe sempre in cima
+  // e le barre delle uscite avrebbero larghezza negativa), ma il numero
+  // mostrato resta con segno per essere coerente col resto della scheda.
   const map = new Map();
   items.forEach((i) => {
     const key = i.category || "Senza categoria";
-    map.set(key, (map.get(key) || 0) + (Number(i.amount) || 0));
+    map.set(key, (map.get(key) || 0) + analisiSignedAmount(i));
   });
-  const rows = Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
-  const maxVal = rows[0][1];
+  const rows = Array.from(map.entries()).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+  const maxAbs = Math.abs(rows[0][1]) || 1;
   container.innerHTML = rows
     .map(
       ([cat, val]) => `
       <div class="breakdown-row">
         <div class="breakdown-label">
           <span>${escapeHTML(cat)}</span>
-          <span class="breakdown-value">${formatEUR(val)}</span>
+          <span class="breakdown-value ${val >= 0 ? "good" : "bad"}">${formatEUR(val)}</span>
         </div>
-        <div class="progress-track"><div class="progress-fill" style="width:${maxVal > 0 ? (val / maxVal) * 100 : 0}%; background: var(--accent)"></div></div>
+        <div class="progress-track"><div class="progress-fill" style="width:${(Math.abs(val) / maxAbs) * 100}%; background: ${val >= 0 ? "var(--good)" : "var(--danger)"}"></div></div>
       </div>`
     )
     .join("");
@@ -1078,16 +1112,17 @@ function renderAnalisiList(items) {
   // cui compaiono nel bucket (che è già l'ordine di inserimento).
   const sorted = items.slice().sort((a, b) => b.monthKey.localeCompare(a.monthKey));
   list.innerHTML = sorted
-    .map(
-      (item) => `
-      <li data-id="${item.id}" data-bucket="${item.bucket}" data-month="${item.monthKey}">
+    .map((item) => {
+      const signed = analisiSignedAmount(item);
+      return `
+      <li data-id="${item.id}" data-bucket="${item.bucket}" data-month="${item.monthKey}" ${item.isStipendio ? 'data-stipendio="true"' : ""}>
         <div>
           <span class="item-note">${escapeHTML(item.note || "—")}</span>
           <span class="item-category">${ANALISI_BUCKET_LABELS[item.bucket]} · ${escapeHTML(item.category || "")} · ${monthLabel(item.monthKey)}</span>
         </div>
-        <span class="item-amount">${formatEUR(item.amount)}</span>
-      </li>`
-    )
+        <span class="item-amount ${signed >= 0 ? "good" : "bad"}">${formatEUR(signed)}</span>
+      </li>`;
+    })
     .join("");
 
   list.querySelectorAll("li[data-id]").forEach((li) => {
@@ -1095,7 +1130,14 @@ function renderAnalisiList(items) {
       state.currentMonthKey = li.dataset.month;
       Store.ensureMonth(state.currentMonthKey);
       switchView("riepilogo");
-      openModal(li.dataset.bucket, li.dataset.id);
+      // Lo stipendio non è una voce modificabile via modale (è un campo unico
+      // sul mese): porta l'utente al Riepilogo e mette il focus direttamente
+      // sul suo input, invece di aprire un modale su una voce inesistente.
+      if (li.dataset.stipendio === "true") {
+        setTimeout(() => document.getElementById("input-stipendio").focus(), 50);
+      } else {
+        openModal(li.dataset.bucket, li.dataset.id);
+      }
     });
   });
 }
@@ -1111,7 +1153,11 @@ function renderAnalisi() {
   });
 
   const items = filteredAnalisiItems();
-  const amounts = items.map((i) => Number(i.amount) || 0);
+  // Segno con entrate positive e uscite negative (vedi analisiSignedAmount):
+  // così sommare voci di tipo diverso dà un saldo netto reale invece di
+  // trattarle tutte come se fossero dello stesso segno. Con solo spese
+  // selezionate il totale scende sotto zero; includendo le entrate risale.
+  const amounts = items.map((i) => analisiSignedAmount(i));
   const totale = amounts.reduce((a, b) => a + b, 0);
   const count = items.length;
   const media = count > 0 ? totale / count : 0;
@@ -1121,12 +1167,12 @@ function renderAnalisi() {
 
   document.getElementById("analisi-summary-line").textContent = describeAnalisiFilters(count);
   document.getElementById("analisi-kpi-grid").innerHTML =
-    analisiKpiCellHTML("Totale", formatEUR(totale)) +
-    analisiKpiCellHTML("Media per transazione", formatEUR(media)) +
-    analisiKpiCellHTML("Mediana per transazione", formatEUR(mediana)) +
+    analisiKpiCellHTML("Totale", formatEUR(totale), { tone: totale >= 0 ? "good" : "bad" }) +
+    analisiKpiCellHTML("Media per transazione", formatEUR(media), { tone: media >= 0 ? "good" : "bad" }) +
+    analisiKpiCellHTML("Mediana per transazione", formatEUR(mediana), { tone: mediana >= 0 ? "good" : "bad" }) +
     analisiKpiCellHTML("N. transazioni", String(count)) +
-    analisiKpiCellHTML("Più alta", formatEUR(max)) +
-    analisiKpiCellHTML("Più bassa", formatEUR(min));
+    analisiKpiCellHTML("Più alta", formatEUR(max), { tone: max >= 0 ? "good" : "bad" }) +
+    analisiKpiCellHTML("Più bassa", formatEUR(min), { tone: min >= 0 ? "good" : "bad" });
 
   renderAnalisiBreakdown(items);
   renderAnalisiList(items);
