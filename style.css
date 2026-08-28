@@ -396,6 +396,11 @@ html, body {
      di spingere le altre sulla riga sotto (vedi .legend-row span più sotto). */
   flex-wrap: nowrap;
   align-items: flex-start;
+  /* Distribuisce lo spazio libero in eccesso in due spazi uguali TRA le voci
+     (non attorno), così la prima voce resta a filo del bordo sinistro e
+     l'ultima a filo del bordo destro: niente più spazio asimmetrico a destra,
+     e la separazione tra le tre voci cresce in modo uniforme. */
+  justify-content: space-between;
   margin-top: 10px;
   font-size: 12px;
   color: var(--muted);
@@ -404,10 +409,15 @@ html, body {
   display: flex;
   align-items: flex-start;
   gap: 4px;
-  /* Permette allo span di restringersi sotto la sua larghezza naturale, così
-     il testo lungo va a capo invece di far traboccare la riga. */
-  min-width: 0;
-  flex: 1 1 auto;
+  /* La prima voce ("Spese necessarie + investimenti") va a capo con un <br />
+     fisso nell'HTML (dopo "necessarie"), non affidandosi allo shrink del
+     flexbox: con flex-shrink la larghezza della casella viene stimata dal
+     motore di layout e può risultare più larga del testo effettivamente
+     andato a capo, lasciando uno spazio vuoto prima del pallino successivo.
+     Con un a capo deterministico la casella si adatta esattamente al testo,
+     quindi ogni voce sta a larghezza naturale (flex-basis auto, niente shrink). */
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 .dot {
   width: 9px;
