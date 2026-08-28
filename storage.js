@@ -20,17 +20,31 @@
  *     },
  *     installments: [
  *       // spesa a rate: si inserisce da sola per "totalInstallments" mesi
- *       // consecutivi a partire da "startMonthKey", poi si ferma
- *       { id, bucket, amount, note, category, totalInstallments, startMonthKey }
- *     ]
+ *       // consecutivi a partire da "startMonthKey", poi si ferma. Se roundUp è
+ *       // true, ogni singola rata genera il proprio round up (arrotondata da
+ *       // sola, non sul totale) nel mese in cui viene pagata.
+ *       { id, bucket, amount, note, category, totalInstallments, startMonthKey, roundUp? }
+ *     ],
+ *     roundUp: {
+ *       // "arrotondamento per investimento" stile Trade Republic: quando attivo,
+ *       // ogni spesa necessaria/svago con il flag "roundUp" genera/incrementa
+ *       // un'unica voce accumulatore in investimenti (una per mese), pari alla
+ *       // differenza tra l'importo e l'euro intero successivo.
+ *       enabled: false, name: "Round up", category: "Round up"
+ *     }
  *   },
  *   months: {
  *     "2026-04": {
  *       stipendio: 2080,
  *       entrate:      [{ id, amount, note, category, date }],
- *       investimenti: [{ id, amount, note, category, date }],
- *       necessarie:   [{ id, amount, note, category, date }],
- *       svago:        [{ id, amount, note, category, date }]
+ *       // "roundUpAccumulator: true" marca la voce automatica generata dal round
+ *       // up (una sola per mese): amount cresce ad ogni spesa che lo genera.
+ *       investimenti: [{ id, amount, note, category, date, roundUpAccumulator? }],
+ *       // "roundUp"/"roundUpAmount" su una spesa: se ha contribuito al round up e
+ *       // quanto (informativo: il contributo resta investito anche se la spesa
+ *       // viene poi eliminata, non viene mai tolto dall'accumulatore).
+ *       necessarie:   [{ id, amount, note, category, date, roundUp?, roundUpAmount? }],
+ *       svago:        [{ id, amount, note, category, date, roundUp?, roundUpAmount? }]
  *     }
  *   }
  * }
@@ -47,7 +61,7 @@ const DEFAULT_DATA = {
       necessarie: ["Mutuo/Affitto", "Bollette", "Rata auto", "Assicurazioni", "Abbonamenti", "Spesa alimentare", "Salute", "Altro"],
       svago: ["Ristoranti/Bar", "Uscite", "Shopping", "Viaggi", "Abbonamenti svago", "Altro"],
       entrate: ["Rimborso", "Vendita", "Incasso extra", "Altro"],
-      investimenti: ["PAC/ETF", "Altro"]
+      investimenti: ["PAC/ETF", "Round up", "Altro"]
     },
     recurringExpenses: [],
     bonifico: {
@@ -60,7 +74,8 @@ const DEFAULT_DATA = {
         { id: "b-mobile", amount: 9.99, note: "Mobile WindTre" }
       ]
     },
-    installments: []
+    installments: [],
+    roundUp: { enabled: false, name: "Round up", category: "Round up" }
   },
   months: {}
 };
@@ -183,6 +198,54 @@ function mergeBonificoSettings(parsedSettings) {
   };
 }
 
+/** Come mergeBonificoSettings, per le impostazioni del round up: un backup
+ * precedente a questa funzionalità non ha questo campo, quindi ricade sui
+ * default (disattivato). */
+function mergeRoundUpSettings(parsedSettings) {
+  const saved = (parsedSettings && parsedSettings.roundUp) || {};
+  return {
+    enabled: !!saved.enabled,
+    name: saved.name || DEFAULT_DATA.settings.roundUp.name,
+    category: saved.category || DEFAULT_DATA.settings.roundUp.category
+  };
+}
+
+function round2(n) {
+  return Math.round((Number(n) || 0) * 100) / 100;
+}
+
+/** Quanto genera di round up un pagamento, arrotondando SEMPRE all'euro
+ * intero successivo (mai lo stesso importo): un pagamento da 10,35€ investe
+ * 0,65€ (arriva a 11€); un pagamento già "tondo" come 10€ investe comunque
+ * 1€ intero (arriva a 11€), esattamente come il round up di Trade Republic. */
+function roundUpDelta(amount) {
+  const amt = Number(amount) || 0;
+  const target = Math.floor(amt) + 1;
+  return round2(target - amt);
+}
+
+/** Trova (creandola se manca) la voce accumulatore del round up dentro un
+ * oggetto mese già in mano, e le aggiunge "delta" (mai sotto zero). Funzione
+ * pura sul mese passato, usata sia da Store.adjustRoundUp/ensureRoundUpItem
+ * sia durante la generazione delle rate (seedInstallmentsInto e affini), dove
+ * il mese è già disponibile e non si vuole salvare ad ogni singola voce. */
+function bumpRoundUpItem(month, roundUpSettings, delta) {
+  let item = (month.investimenti || []).find((i) => i.roundUpAccumulator);
+  if (!item) {
+    item = {
+      id: uid(),
+      roundUpAccumulator: true,
+      amount: 0,
+      note: roundUpSettings.name,
+      category: roundUpSettings.category,
+      date: new Date().toISOString()
+    };
+    month.investimenti.push(item);
+  }
+  item.amount = Math.max(0, round2(item.amount + delta));
+  return item;
+}
+
 const Store = {
   data: null,
 
@@ -208,6 +271,7 @@ const Store = {
       this.data.settings.recurringExpenses = (parsed.settings && parsed.settings.recurringExpenses) || [];
       this.data.settings.bonifico = mergeBonificoSettings(parsed.settings);
       this.data.settings.installments = (parsed.settings && parsed.settings.installments) || [];
+      this.data.settings.roundUp = mergeRoundUpSettings(parsed.settings);
       this.data.months = parsed.months || {};
       const fixedIds = ensureItemIds(this.data.months);
       const fixedRecurring = linkLegacyRecurringIds(this.data.months, this.data.settings.recurringExpenses);
@@ -308,22 +372,38 @@ const Store = {
     return Math.round((inst.amount - base * (count - 1)) * 100) / 100;
   },
 
+  /** Costruisce la voce per la rata n (1-based) di un piano di rate. Se il
+   * piano ha il round up attivo ("inst.roundUp"), la rata lo genera anche lei:
+   * arrotondata singolarmente (non sul totale della spesa), così investe la
+   * differenza nel mese in cui quella specifica rata viene pagata. */
+  buildInstallmentItem(inst, n) {
+    const amount = this.installmentAmountForIndex(inst, n);
+    const item = {
+      id: uid(),
+      installmentId: inst.id,
+      installmentIndex: n,
+      installmentTotal: inst.totalInstallments,
+      amount,
+      note: `${inst.note} (${n}/${inst.totalInstallments})`,
+      category: inst.category,
+      date: new Date().toISOString()
+    };
+    if (inst.roundUp) {
+      item.roundUp = true;
+      item.roundUpAmount = roundUpDelta(amount);
+    }
+    return item;
+  },
+
   seedInstallmentsInto(month, key) {
     const installments = this.data.settings.installments || [];
     installments.forEach((inst) => {
       if (!month[inst.bucket]) return;
       const n = this.installmentIndexForMonth(inst, key);
       if (n === null) return;
-      month[inst.bucket].push({
-        id: uid(),
-        installmentId: inst.id,
-        installmentIndex: n,
-        installmentTotal: inst.totalInstallments,
-        amount: this.installmentAmountForIndex(inst, n),
-        note: `${inst.note} (${n}/${inst.totalInstallments})`,
-        category: inst.category,
-        date: new Date().toISOString()
-      });
+      const item = this.buildInstallmentItem(inst, n);
+      month[inst.bucket].push(item);
+      if (item.roundUp) bumpRoundUpItem(month, this.data.settings.roundUp, item.roundUpAmount);
     });
   },
 
@@ -339,16 +419,9 @@ const Store = {
       if (n === null) return;
       const already = month[inst.bucket].some((i) => i.installmentId === inst.id);
       if (already) return;
-      month[inst.bucket].push({
-        id: uid(),
-        installmentId: inst.id,
-        installmentIndex: n,
-        installmentTotal: inst.totalInstallments,
-        amount: this.installmentAmountForIndex(inst, n),
-        note: `${inst.note} (${n}/${inst.totalInstallments})`,
-        category: inst.category,
-        date: new Date().toISOString()
-      });
+      const item = this.buildInstallmentItem(inst, n);
+      month[inst.bucket].push(item);
+      if (item.roundUp) bumpRoundUpItem(month, this.data.settings.roundUp, item.roundUpAmount);
       added++;
     });
     this.save();
@@ -368,16 +441,9 @@ const Store = {
         if (n === null) return;
         const already = month[inst.bucket].some((i) => i.installmentId === inst.id);
         if (already) return;
-        month[inst.bucket].push({
-          id: uid(),
-          installmentId: inst.id,
-          installmentIndex: n,
-          installmentTotal: inst.totalInstallments,
-          amount: this.installmentAmountForIndex(inst, n),
-          note: `${inst.note} (${n}/${inst.totalInstallments})`,
-          category: inst.category,
-          date: new Date().toISOString()
-        });
+        const item = this.buildInstallmentItem(inst, n);
+        month[inst.bucket].push(item);
+        if (item.roundUp) bumpRoundUpItem(month, this.data.settings.roundUp, item.roundUpAmount);
         added++;
       });
     });
@@ -442,6 +508,34 @@ const Store = {
   removeRecurring(id) {
     this.data.settings.recurringExpenses = this.data.settings.recurringExpenses.filter((r) => r.id !== id);
     this.save();
+  },
+
+  /* --- Round up (arrotondamento per investimento, stile Trade Republic) --- */
+
+  /** Trova la voce accumulatore del round up per un mese, senza crearla. */
+  getRoundUpItem(monthKey) {
+    const month = this.data.months[monthKey];
+    if (!month) return null;
+    return (month.investimenti || []).find((i) => i.roundUpAccumulator) || null;
+  },
+
+  /** Trova la voce accumulatore del round up per un mese, creandola (con
+   * importo 0, nome/categoria correnti dalle impostazioni) se non esiste
+   * ancora. Non salva da sola: chi chiama decide quando farlo. */
+  ensureRoundUpItem(monthKey) {
+    const month = this.getMonth(monthKey);
+    return bumpRoundUpItem(month, this.data.settings.roundUp, 0);
+  },
+
+  /** Aggiunge un importo alla voce round up del mese indicato, creandola se
+   * necessario. L'importo non scende mai sotto zero (qui non serve mai
+   * togliere: una volta investito, il round up di una spesa poi eliminata
+   * resta investito). */
+  adjustRoundUp(monthKey, delta) {
+    const month = this.getMonth(monthKey);
+    const item = bumpRoundUpItem(month, this.data.settings.roundUp, delta);
+    this.save();
+    return item;
   },
 
   /* --- Bonifico ricorrente tra conti (es. TR -> CA) --------------- */
@@ -569,6 +663,7 @@ const Store = {
     this.data.settings.recurringExpenses = (parsed.settings && parsed.settings.recurringExpenses) || [];
     this.data.settings.bonifico = mergeBonificoSettings(parsed.settings);
     this.data.settings.installments = (parsed.settings && parsed.settings.installments) || [];
+    this.data.settings.roundUp = mergeRoundUpSettings(parsed.settings);
     ensureItemIds(this.data.months);
     linkLegacyRecurringIds(this.data.months, this.data.settings.recurringExpenses);
     this.save();

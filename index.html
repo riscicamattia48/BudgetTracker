@@ -291,6 +291,26 @@
 
     <div class="card collapsible">
       <div class="card-header" data-toggle>
+        <h2>Round up</h2>
+        <span class="chevron">⌄</span>
+      </div>
+      <div class="collapsible-body">
+        <p class="hint">Ad ogni spesa necessaria o per svago con il flag "Genera round up" attivo, arrotonda
+          l'importo all'euro successivo (anche se è già una cifra tonda) e investe la differenza in un'unica
+          voce in Investimenti, che si crea da sola e cresce ad ogni spesa del mese.</p>
+        <div class="checkbox-row">
+          <input type="checkbox" id="roundup-enabled" />
+          <label for="roundup-enabled">Attiva round up</label>
+        </div>
+        <div class="split-form" style="margin-top:4px">
+          <label>Nome voce <input type="text" id="roundup-name" maxlength="40" /></label>
+          <label>Categoria <select id="roundup-category"></select></label>
+        </div>
+      </div>
+    </div>
+
+    <div class="card collapsible">
+      <div class="card-header" data-toggle>
         <h2>Backup dati</h2>
         <span class="chevron">⌄</span>
       </div>
@@ -344,9 +364,15 @@
       <label>Categoria
         <select id="modal-category"></select>
       </label>
-      <div class="checkbox-row" id="modal-rateizza-row">
-        <input type="checkbox" id="modal-rateizza" />
-        <label for="modal-rateizza">Rateizza questa spesa</label>
+      <div class="checkbox-row-group">
+        <div class="checkbox-row" id="modal-rateizza-row">
+          <input type="checkbox" id="modal-rateizza" />
+          <label for="modal-rateizza">Rateizza</label>
+        </div>
+        <div class="checkbox-row hidden" id="modal-roundup-row">
+          <input type="checkbox" id="modal-roundup" checked />
+          <label for="modal-roundup">Genera round up</label>
+        </div>
       </div>
       <label id="modal-installments-row" class="hidden">Numero di rate (inclusa questa)
         <input type="number" id="modal-installments-count" class="plain-number" min="2" max="60" step="1" value="2" />

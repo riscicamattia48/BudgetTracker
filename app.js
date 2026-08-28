@@ -165,6 +165,12 @@ function openModal(bucket, itemId = null) {
   document.getElementById("modal-amount-label").textContent = "Importo";
   document.getElementById("modal-rate-preview").classList.add("hidden");
 
+  // "Genera round up" ha senso solo per una spesa nuova (necessaria/svago, non
+  // un investimento o un'entrata) e solo se il round up è attivo nelle
+  // impostazioni; attivo di default quando applicabile.
+  document.getElementById("modal-roundup").checked = true;
+  updateRoundUpVisibility();
+
   document.getElementById("modal-delete").classList.toggle("hidden", !isEdit);
   document.getElementById("modal-note-suggestions").classList.add("hidden");
   document.getElementById("item-modal").classList.remove("hidden");
@@ -175,6 +181,16 @@ function closeModal() {
   document.getElementById("item-modal").classList.add("hidden");
   document.getElementById("modal-note-suggestions").classList.add("hidden");
   state.modal = { bucket: null, itemId: null };
+}
+
+/* Il round up ha senso solo per una spesa nuova (necessaria/svago) e solo se
+ * attivo nelle impostazioni. Funziona anche insieme a "Rateizza": in quel caso
+ * ogni singola rata genera il proprio round up (vedi Store.buildInstallmentItem),
+ * quindi la checkbox resta disponibile indipendentemente da quella. */
+function updateRoundUpVisibility() {
+  const { bucket, itemId } = state.modal;
+  const applicabile = !itemId && (bucket === "necessarie" || bucket === "svago") && Store.data.settings.roundUp.enabled;
+  document.getElementById("modal-roundup-row").classList.toggle("hidden", !applicabile);
 }
 
 /* Autocompletamento del campo "Nota": suggerisce nomi già usati in precedenza
@@ -283,6 +299,9 @@ function initModal() {
     const rateizzaRowVisibile = !document.getElementById("modal-rateizza-row").classList.contains("hidden");
     const rateizza = rateizzaRowVisibile && document.getElementById("modal-rateizza").checked;
 
+    const roundUpRowVisibile = !document.getElementById("modal-roundup-row").classList.contains("hidden");
+    const roundUpOn = roundUpRowVisibile && document.getElementById("modal-roundup").checked;
+
     if (rateizza) {
       const totalInstallments = parseInt(document.getElementById("modal-installments-count").value, 10);
       if (!totalInstallments || totalInstallments < 2) {
@@ -293,11 +312,24 @@ function initModal() {
       // mancanti a TUTTI i mesi già aperti (non solo quello corrente): se il mese
       // di partenza è nel passato, i mesi successivi già esistenti (es. quello
       // corrente reale) devono ricevere subito la rata che gli spetta, non solo
-      // al prossimo giro di navigazione.
-      Store.addInstallmentPlan({ bucket, amount, note, category, totalInstallments, startMonthKey: state.currentMonthKey });
+      // al prossimo giro di navigazione. Se il round up era attivo, ogni rata lo
+      // genera da sola (arrotondata singolarmente) nel mese in cui viene pagata:
+      // vedi Store.buildInstallmentItem.
+      Store.addInstallmentPlan({
+        bucket, amount, note, category, totalInstallments,
+        startMonthKey: state.currentMonthKey,
+        roundUp: roundUpOn
+      });
       Store.applyMissingInstallmentsToAllMonths();
     } else if (itemId) {
       Store.updateItem(state.currentMonthKey, bucket, itemId, { amount, note, category });
+    } else if (roundUpOn) {
+      // Calcola subito la differenza di round up e la registra sulla voce
+      // stessa (roundUp/roundUpAmount, informativo): il contributo resta
+      // investito anche se questa spesa viene eliminata in seguito.
+      const delta = roundUpDelta(amount);
+      Store.addItem(state.currentMonthKey, bucket, { amount, note, category, roundUp: true, roundUpAmount: delta });
+      Store.adjustRoundUp(state.currentMonthKey, delta);
     } else {
       Store.addItem(state.currentMonthKey, bucket, { amount, note, category });
     }
@@ -309,6 +341,9 @@ function initModal() {
     const { bucket, itemId } = state.modal;
     if (!itemId) return;
     if (!confirm("Eliminare questa voce?")) return;
+    // Il round up eventualmente generato da questa spesa NON viene tolto
+    // dall'accumulatore: è ormai investito, ed eliminare la spesa che lo ha
+    // generato non lo cambia.
     Store.removeItem(state.currentMonthKey, bucket, itemId);
     closeModal();
     renderRiepilogo();
@@ -1144,6 +1179,22 @@ function renderImpostazioni() {
   renderRecurringList();
   renderInstallmentsList();
   renderBonifico();
+  renderRoundUpSettings();
+}
+
+function populateRoundUpCategorySelect(selected) {
+  const select = document.getElementById("roundup-category");
+  select.innerHTML = categoriesForBucket("investimenti")
+    .map((c) => `<option value="${escapeHTML(c)}">${escapeHTML(c)}</option>`)
+    .join("");
+  if (selected) select.value = selected;
+}
+
+function renderRoundUpSettings() {
+  const ru = Store.data.settings.roundUp;
+  document.getElementById("roundup-enabled").checked = ru.enabled;
+  document.getElementById("roundup-name").value = ru.name;
+  populateRoundUpCategorySelect(ru.category);
 }
 
 function checkSplitSum() {
@@ -1169,6 +1220,35 @@ function initSettingsHandlers() {
       Store.data.settings.thresholdBase = e.target.value;
       Store.save();
     });
+  });
+
+  document.getElementById("roundup-enabled").addEventListener("change", (e) => {
+    Store.data.settings.roundUp.enabled = e.target.checked;
+    if (e.target.checked) {
+      // "si genera nel momento in cui attivo la funzione": crea subito la voce
+      // accumulatore nel mese corrente, anche prima di qualunque spesa.
+      Store.ensureRoundUpItem(state.currentMonthKey);
+    }
+    Store.save();
+    if (state.currentView === "riepilogo") renderRiepilogo();
+  });
+  document.getElementById("roundup-name").addEventListener("input", (e) => {
+    Store.data.settings.roundUp.name = e.target.value;
+    Store.save();
+  });
+  document.getElementById("roundup-name").addEventListener("blur", (e) => {
+    // Non permettere un nome vuoto: solo qui (non ad ogni tasto, altrimenti non
+    // si potrebbe mai cancellare il campo per riscriverlo) si ripristina il
+    // default se l'utente lascia il campo vuoto.
+    if (!e.target.value.trim()) {
+      e.target.value = "Round up";
+      Store.data.settings.roundUp.name = "Round up";
+      Store.save();
+    }
+  });
+  document.getElementById("roundup-category").addEventListener("change", (e) => {
+    Store.data.settings.roundUp.category = e.target.value;
+    Store.save();
   });
 
   document.getElementById("btn-export").addEventListener("click", () => {
