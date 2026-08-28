@@ -3,12 +3,15 @@
  * dello storico e delle impostazioni, gestione del modale aggiungi/modifica voce.
  */
 
+// Entrate extra: stesso colore dei Risparmi. Investimenti: colore che prima
+// apparteneva a Entrate extra. Allineati ai valori delle CSS custom properties
+// (--entrate/--investimenti in style.css), usati qui per il grafico a torta.
 const COLORS = {
   necessarie: "#e8a33d",
   svago: "#4caf7d",
   risparmi: "#8a5fd6",
-  investimenti: "#4a90d9",
-  entrate: "#c9b400"
+  investimenti: "#e0c93d",
+  entrate: "#8a5fd6"
 };
 
 const BUCKET_LABELS = {
@@ -75,8 +78,8 @@ function renderRiepilogo() {
 
   renderBucketList("necessarie");
   renderBucketList("svago");
-  renderBucketList("entrate");
   renderBucketList("investimenti");
+  renderBucketList("entrate");
 }
 
 function summaryCellHTML(type, label, value, soglia, isMin) {
@@ -294,7 +297,20 @@ function initModal() {
     const amount = parseFloat(document.getElementById("modal-amount").value);
     const note = document.getElementById("modal-note").value.trim();
     const category = document.getElementById("modal-category").value;
-    if (!amount || amount <= 0 || !note) return;
+
+    // La voce accumulatore del round up è l'unico caso in cui un importo di
+    // 0€ ha senso (es. per azzerarla manualmente): per tutte le altre voci un
+    // importo pari o sotto zero non è valido.
+    const editingItem = itemId ? (currentMonth()[bucket] || []).find((i) => i.id === itemId) : null;
+    const isRoundUpAccumulator = !!(editingItem && editingItem.roundUpAccumulator);
+    const amountValid = !Number.isNaN(amount) && (isRoundUpAccumulator ? amount >= 0 : amount > 0);
+    if (!amountValid || !note) {
+      // Prima si restituiva senza alcun avviso: sembrava che il pulsante Salva
+      // non facesse nulla (es. inserendo 0€, "falso" per !amount). Ora lo si
+      // dice esplicitamente.
+      alert(!note ? "Inserisci una nota/descrizione." : "Inserisci un importo valido.");
+      return;
+    }
 
     const rateizzaRowVisibile = !document.getElementById("modal-rateizza-row").classList.contains("hidden");
     const rateizza = rateizzaRowVisibile && document.getElementById("modal-rateizza").checked;
@@ -1498,6 +1514,12 @@ function initDeleteMonth() {
     const label = monthLabel(state.currentMonthKey);
     if (!confirm(`Eliminare tutte le voci di ${label}? L'azione non può essere annullata.`)) return;
     Store.clearMonth(state.currentMonthKey);
+    // Il mese appena eliminato non esiste più: se restassimo a guardarlo si
+    // rigenererebbe all'istante (Store.getMonth lo ricrea al primo accesso),
+    // vanificando la cancellazione appena fatta. Si torna quindi al mese
+    // corrente reale, che è comunque la vista di partenza dell'app.
+    state.currentMonthKey = monthKey(new Date());
+    Store.ensureMonth(state.currentMonthKey);
     renderRiepilogo();
   });
 }

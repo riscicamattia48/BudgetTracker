@@ -590,13 +590,15 @@ const Store = {
     return Object.keys(this.data.months).sort();
   },
 
-  /** Svuota completamente un mese (stipendio e tutte le voci), senza ri-applicare
-   * spese fisse/rate: usato dal pulsante "elimina tutti i dati del mese". Il mese
-   * resta comunque presente (così non viene ri-seedato automaticamente se lo si
-   * riapre in seguito). */
+  /** Elimina completamente il record di un mese (stipendio e tutte le voci):
+   * usato dal pulsante "elimina tutti i dati del mese". A differenza di una
+   * versione precedente, qui il mese viene rimosso del tutto (non solo
+   * svuotato): se in seguito lo si riapre, torna a comportarsi come un mese
+   * mai aperto prima, quindi si rigenera da solo con le spese fisse e le rate
+   * configurate nelle impostazioni (vedi Store.getMonth). */
   clearMonth(key) {
     if (!this.data.months[key]) return;
-    this.data.months[key] = emptyMonth();
+    delete this.data.months[key];
     this.save();
   },
 
