@@ -1,16 +1,17 @@
 :root {
   --necessarie: #e8a33d;
   --necessarie-bg: #fdf1de;
-  --svago: #4caf7d;
-  --svago-bg: #e6f5ec;
-  /* Entrate extra: stesso colore dei Risparmi. Investimenti: colore che prima
-     apparteneva a Entrate extra. */
-  --entrate: #8a5fd6;
-  --entrate-bg: #efe7fa;
+  /* Svago: blu. */
+  --svago: #4a90d9;
+  --svago-bg: #e3eefc;
+  /* Entrate extra: stesso verde dei Risparmi (erano prima il verde di Svago,
+     libero ora che Svago è diventato blu). Investimenti: giallo, invariato. */
+  --entrate: #4caf7d;
+  --entrate-bg: #e6f5ec;
   --investimenti: #e0c93d;
   --investimenti-bg: #fbf7dd;
-  --risparmi: #8a5fd6;
-  --risparmi-bg: #efe7fa;
+  --risparmi: #4caf7d;
+  --risparmi-bg: #e6f5ec;
 
   --bg: #f4f5f7;
   --card-bg: #ffffff;
@@ -33,10 +34,10 @@
     --muted: #9aa1ad;
     --border: #2c2e33;
     --necessarie-bg: #3a2f1a;
-    --svago-bg: #163b28;
-    --entrate-bg: #2c2140;
+    --svago-bg: #1a2f45;
+    --entrate-bg: #163b28;
     --investimenti-bg: #38351a;
-    --risparmi-bg: #2c2140;
+    --risparmi-bg: #163b28;
     --accent-bg: #2a2140;
     --good: #3ab873;
     color-scheme: dark;

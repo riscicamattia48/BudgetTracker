@@ -268,7 +268,8 @@
       <div class="collapsible-body">
         <p class="hint">Le spese che aggiungi qui vengono inserite automaticamente in ogni mese, anche in
           quelli già aperti in precedenza: creare o modificare una spesa fissa aggiorna subito anche i
-          mesi già esistenti.</p>
+          mesi già esistenti. Per una spesa necessaria o per svago puoi anche decidere se genera il round
+          up ad ogni sua occorrenza mensile (se il round up è attivo qui sotto).</p>
         <ul class="item-list" id="list-recurring"></ul>
         <button class="add-btn accent" id="btn-add-recurring">+ Aggiungi spesa fissa</button>
       </div>
@@ -409,6 +410,10 @@
       <label>Categoria
         <select id="recurring-category"></select>
       </label>
+      <div class="checkbox-row hidden" id="recurring-roundup-row">
+        <input type="checkbox" id="recurring-roundup" />
+        <label for="recurring-roundup">Genera round up</label>
+      </div>
       <div class="modal-actions">
         <button type="button" id="recurring-delete" class="btn danger hidden">Elimina</button>
         <button type="button" id="recurring-cancel" class="btn secondary">Annulla</button>

@@ -12,7 +12,10 @@
  *       necessarie: [...nomi], svago: [...nomi], entrate: [...nomi], investimenti: [...nomi]
  *     },
  *     recurringExpenses: [
- *       { id, bucket: "necessarie"|"svago"|"investimenti", amount, note, category }
+ *       // Se roundUp è true, ogni occorrenza mensile di questa spesa fissa
+ *       // genera il proprio round up (arrotondato sul suo importo fisso),
+ *       // esattamente come una rata o una spesa manuale con il flag attivo.
+ *       { id, bucket: "necessarie"|"svago"|"investimenti", amount, note, category, roundUp? }
  *     ],
  *     bonifico: {
  *       fromLabel: "TR", toLabel: "CA",
@@ -312,18 +315,32 @@ const Store = {
     this.save();
   },
 
+  /** Costruisce la voce mensile per una spesa fissa. Se ha il round up attivo
+   * ("r.roundUp"), la genera anche lei ad ogni occorrenza, arrotondata sul suo
+   * importo fisso — stessa logica di buildInstallmentItem per le rate. */
+  buildRecurringItem(r) {
+    const item = {
+      id: uid(),
+      recurringId: r.id,
+      amount: r.amount,
+      note: r.note,
+      category: r.category,
+      date: new Date().toISOString()
+    };
+    if (r.roundUp) {
+      item.roundUp = true;
+      item.roundUpAmount = roundUpDelta(r.amount);
+    }
+    return item;
+  },
+
   seedRecurringInto(month) {
     const recurring = this.data.settings.recurringExpenses || [];
     recurring.forEach((r) => {
       if (!month[r.bucket]) return;
-      month[r.bucket].push({
-        id: uid(),
-        recurringId: r.id,
-        amount: r.amount,
-        note: r.note,
-        category: r.category,
-        date: new Date().toISOString()
-      });
+      const item = this.buildRecurringItem(r);
+      month[r.bucket].push(item);
+      if (item.roundUp) bumpRoundUpItem(month, this.data.settings.roundUp, item.roundUpAmount);
     });
   },
 
@@ -338,14 +355,9 @@ const Store = {
       if (!month[r.bucket]) return;
       const already = month[r.bucket].some((i) => i.recurringId === r.id);
       if (already) return;
-      month[r.bucket].push({
-        id: uid(),
-        recurringId: r.id,
-        amount: r.amount,
-        note: r.note,
-        category: r.category,
-        date: new Date().toISOString()
-      });
+      const item = this.buildRecurringItem(r);
+      month[r.bucket].push(item);
+      if (item.roundUp) bumpRoundUpItem(month, this.data.settings.roundUp, item.roundUpAmount);
       added++;
     });
     this.save();
@@ -479,14 +491,9 @@ const Store = {
         if (!month[r.bucket]) return;
         const already = month[r.bucket].some((i) => i.recurringId === r.id);
         if (already) return;
-        month[r.bucket].push({
-          id: uid(),
-          recurringId: r.id,
-          amount: r.amount,
-          note: r.note,
-          category: r.category,
-          date: new Date().toISOString()
-        });
+        const item = this.buildRecurringItem(r);
+        month[r.bucket].push(item);
+        if (item.roundUp) bumpRoundUpItem(month, this.data.settings.roundUp, item.roundUpAmount);
         added++;
       });
     });

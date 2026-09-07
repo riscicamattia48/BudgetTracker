@@ -3,15 +3,15 @@
  * dello storico e delle impostazioni, gestione del modale aggiungi/modifica voce.
  */
 
-// Entrate extra: stesso colore dei Risparmi. Investimenti: colore che prima
-// apparteneva a Entrate extra. Allineati ai valori delle CSS custom properties
-// (--entrate/--investimenti in style.css), usati qui per il grafico a torta.
+// Svago: blu. Entrate extra: stesso verde dei Risparmi (il verde che prima
+// era di Svago). Investimenti: giallo, invariato. Allineati ai valori delle
+// CSS custom properties in style.css, usati qui per i grafici.
 const COLORS = {
   necessarie: "#e8a33d",
-  svago: "#4caf7d",
-  risparmi: "#8a5fd6",
+  svago: "#4a90d9",
+  risparmi: "#4caf7d",
   investimenti: "#e0c93d",
-  entrate: "#8a5fd6"
+  entrate: "#4caf7d"
 };
 
 const BUCKET_LABELS = {
@@ -404,9 +404,21 @@ function openRecurringModal(itemId = null) {
   document.getElementById("recurring-amount").value = item ? item.amount : "";
   document.getElementById("recurring-note").value = item ? item.note : "";
 
+  // "Genera round up" ha senso solo per una spesa necessaria o per svago (non
+  // un investimento) e solo se il round up è attivo nelle impostazioni; attivo
+  // di default su una spesa fissa nuova, come per una spesa manuale.
+  document.getElementById("recurring-roundup").checked = item ? !!item.roundUp : true;
+  updateRecurringRoundUpVisibility();
+
   document.getElementById("recurring-delete").classList.toggle("hidden", !isEdit);
   document.getElementById("recurring-modal").classList.remove("hidden");
   setTimeout(() => document.getElementById("recurring-amount").focus(), 50);
+}
+
+function updateRecurringRoundUpVisibility() {
+  const bucket = document.getElementById("recurring-bucket").value;
+  const applicabile = bucket !== "investimenti" && Store.data.settings.roundUp.enabled;
+  document.getElementById("recurring-roundup-row").classList.toggle("hidden", !applicabile);
 }
 
 function closeRecurringModal() {
@@ -426,7 +438,7 @@ function renderRecurringList() {
       (item) => `
       <li data-id="${item.id}">
         <div>
-          <span class="item-note">${escapeHTML(item.note || "—")}</span>
+          <span class="item-note">${escapeHTML(item.note || "—")}${item.roundUp ? '<span class="fisso-badge">round up</span>' : ""}</span>
           <span class="item-category">${RECURRING_BUCKET_LABELS[item.bucket] || item.bucket} · ${escapeHTML(item.category || "")}</span>
         </div>
         <span class="item-amount">${formatEUR(item.amount)}</span>
@@ -446,6 +458,7 @@ function initRecurringModal() {
 
   document.getElementById("recurring-bucket").addEventListener("change", (e) => {
     populateRecurringCategorySelect(e.target.value);
+    updateRecurringRoundUpVisibility();
   });
 
   document.getElementById("recurring-form").addEventListener("submit", (e) => {
@@ -456,10 +469,13 @@ function initRecurringModal() {
     const category = document.getElementById("recurring-category").value;
     if (!amount || amount <= 0 || !note) return;
 
+    const roundUpRowVisibile = !document.getElementById("recurring-roundup-row").classList.contains("hidden");
+    const roundUp = roundUpRowVisibile && document.getElementById("recurring-roundup").checked;
+
     if (recurringModalState.itemId) {
-      Store.updateRecurring(recurringModalState.itemId, { bucket, amount, note, category });
+      Store.updateRecurring(recurringModalState.itemId, { bucket, amount, note, category, roundUp });
     } else {
-      Store.addRecurring({ bucket, amount, note, category });
+      Store.addRecurring({ bucket, amount, note, category, roundUp });
     }
     // Applica subito le spese fisse mancanti a tutti i mesi già aperti, come già
     // succede per le rate: senza questo, aggiungere/modificare una spesa fissa
