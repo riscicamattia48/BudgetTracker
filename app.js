@@ -1040,10 +1040,10 @@ function computeAnalisiOverview(selectedYear) {
 
   const totaleInvestito = perMonth.reduce((acc, m) => acc + m.stats.investimenti, 0);
 
-  // Come in tutto il resto dell'app, gli investimenti sono conteggiati insieme
-  // alle spese necessarie (vedi computeMonthStats: totaleNecessarie = necessarie
-  // + investimenti): anche qui entrano sia nel numeratore che nel denominatore,
-  // per restare coerenti con "Spese necessarie + investimenti" mostrato altrove.
+  // Il numeratore somma le voci "fisse" (generate da una spesa fissa
+  // ricorrente o da un piano di rate, riconoscibili da recurringId/
+  // installmentId) tra necessarie, investimenti e svago, coerentemente con
+  // le altre viste dell'app che raggruppano questi tre bucket insieme.
   const curMonth = monthOrEmpty(realCurrentKey);
   let totaleMeseCorrente = 0, fissoMeseCorrente = 0;
   ["necessarie", "investimenti", "svago"].forEach((bucket) => {
@@ -1053,7 +1053,12 @@ function computeAnalisiOverview(selectedYear) {
       if (item.recurringId || item.installmentId) fissoMeseCorrente += amt;
     });
   });
-  const pctFisso = totaleMeseCorrente > 0 ? (fissoMeseCorrente / totaleMeseCorrente) * 100 : 0;
+  // La percentuale è rapportata allo stipendio (non al totale speso): dice
+  // quanta parte dell'entrata mensile se ne va comunque in spese fisse/rate,
+  // a prescindere da quanto si è attenti sulle spese variabili — un dato che
+  // il grafico a torta del Riepilogo (speso vs risparmiato) non mostra.
+  const stipendioMeseCorrente = Number(curMonth.stipendio) || 0;
+  const pctFisso = stipendioMeseCorrente > 0 ? (fissoMeseCorrente / stipendioMeseCorrente) * 100 : 0;
 
   const prevKey = shiftMonthKey(realCurrentKey, -1);
   const prevStats = computeMonthStats(monthOrEmpty(prevKey), settings);
@@ -1067,7 +1072,7 @@ function computeAnalisiOverview(selectedYear) {
     year, realCurrentKey, prevKey, yearHasData: yearKeys.length > 0,
     saldoNetto, tassoRisparmioMedio, topCategoria, meseCaro, meseLeggero,
     mediaTransazioni, spesaGiornaliera, daysElapsed, maxItem, totaleInvestito,
-    pctFisso, fissoMeseCorrente, totaleMeseCorrente,
+    pctFisso, fissoMeseCorrente, totaleMeseCorrente, stipendioMeseCorrente,
     curTotUscite, prevTotUscite, deltaUscite, deltaPct
   };
 }
@@ -1093,7 +1098,11 @@ function renderAnalisiOverview() {
     : `<p class="hint" style="margin:0">Nessun dato per il ${o.year}.</p>`;
 
   document.getElementById("analisi-overview-month-grid").innerHTML =
-    analisiKpiCellHTML("Spese fisse/rate", `${o.pctFisso.toFixed(1)}%`, { sub: `${formatEUR(o.fissoMeseCorrente)} su ${formatEUR(o.totaleMeseCorrente)}` }) +
+    analisiKpiCellHTML("Fisso/rate su stipendio", o.stipendioMeseCorrente > 0 ? `${o.pctFisso.toFixed(1)}%` : "—", {
+      sub: o.stipendioMeseCorrente > 0
+        ? `${formatEUR(o.fissoMeseCorrente)} su ${formatEUR(o.stipendioMeseCorrente)}`
+        : "Imposta lo stipendio del mese"
+    }) +
     analisiKpiCellHTML("Rispetto al mese scorso", formatEUR(o.curTotUscite), {
       tone: o.deltaUscite > 0 ? "bad" : o.deltaUscite < 0 ? "good" : "",
       sub: `${o.deltaUscite >= 0 ? "▲" : "▼"} ${Math.abs(o.deltaPct).toFixed(1)}% vs ${monthLabel(o.prevKey)}`
