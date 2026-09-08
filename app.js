@@ -177,7 +177,14 @@ function openModal(bucket, itemId = null) {
   document.getElementById("modal-delete").classList.toggle("hidden", !isEdit);
   document.getElementById("modal-note-suggestions").classList.add("hidden");
   document.getElementById("item-modal").classList.remove("hidden");
-  setTimeout(() => document.getElementById("modal-amount").focus(), 50);
+  // Il focus deve avvenire in modo sincrono, nello stesso tick del click che
+  // ha aperto il modale: su iOS Safari un focus() dentro un setTimeout (anche
+  // con un ritardo minimo) non viene più considerato parte del gesto
+  // dell'utente, quindi il campo si "seleziona" ma la tastiera numerica non
+  // compare finché non si tocca di nuovo il campo a mano.
+  const amountInput = document.getElementById("modal-amount");
+  amountInput.focus();
+  amountInput.select();
 }
 
 function closeModal() {
@@ -412,7 +419,11 @@ function openRecurringModal(itemId = null) {
 
   document.getElementById("recurring-delete").classList.toggle("hidden", !isEdit);
   document.getElementById("recurring-modal").classList.remove("hidden");
-  setTimeout(() => document.getElementById("recurring-amount").focus(), 50);
+  // Focus sincrono (vedi commento in openModal): serve perché su iOS Safari
+  // un focus() differito con setTimeout non fa comparire la tastiera.
+  const recurringAmountInput = document.getElementById("recurring-amount");
+  recurringAmountInput.focus();
+  recurringAmountInput.select();
 }
 
 function updateRecurringRoundUpVisibility() {
@@ -543,7 +554,11 @@ function openBonificoModal(itemId = null) {
   document.getElementById("bonifico-note").value = item ? item.note : "";
   document.getElementById("bonifico-delete").classList.toggle("hidden", !isEdit);
   document.getElementById("bonifico-modal").classList.remove("hidden");
-  setTimeout(() => document.getElementById("bonifico-amount").focus(), 50);
+  // Focus sincrono (vedi commento in openModal): serve perché su iOS Safari
+  // un focus() differito con setTimeout non fa comparire la tastiera.
+  const bonificoAmountInput = document.getElementById("bonifico-amount");
+  bonificoAmountInput.focus();
+  bonificoAmountInput.select();
 }
 
 function closeBonificoModal() {
@@ -649,7 +664,11 @@ function openInstallmentModal(itemId = null) {
   document.getElementById("installment-delete").classList.toggle("hidden", !isEdit);
   document.getElementById("installment-modal").classList.remove("hidden");
   updateInstallmentRatePreview();
-  setTimeout(() => document.getElementById("installment-amount").focus(), 50);
+  // Focus sincrono (vedi commento in openModal): serve perché su iOS Safari
+  // un focus() differito con setTimeout non fa comparire la tastiera.
+  const installmentAmountInput = document.getElementById("installment-amount");
+  installmentAmountInput.focus();
+  installmentAmountInput.select();
 }
 
 function updateInstallmentRatePreview() {
