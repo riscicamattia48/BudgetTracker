@@ -469,14 +469,15 @@ html, body {
 
 .history-table-wrap { overflow-x: auto; }
 /* width:100% invece di auto+margin:auto: la tabella occupa tutta la card
-   invece di restare stretta al centro con grossi bordi vuoti ai lati, e il
-   padding orizzontale più ampio dà respiro tra le colonne. */
-.history-table { width: 100%; border-collapse: collapse; font-size: 10px; }
+   invece di restare stretta al centro con grossi bordi vuoti ai lati. Padding
+   e font ridotti al minimo leggibile perché con 5 colonne (mese + 4 importi)
+   è facile sforare la larghezza dello schermo su iPhone. */
+.history-table { width: 100%; border-collapse: collapse; font-size: 9px; }
 .history-table th, .history-table td {
   text-align: center;
-  padding: 8px 10px;
+  padding: 6px 3px;
   border-bottom: 1px solid var(--border);
-  border-left: 1.5px solid var(--muted);
+  border-left: 1px solid var(--muted);
   white-space: nowrap;
 }
 .history-table th:first-child, .history-table td:first-child { border-left: none; }
