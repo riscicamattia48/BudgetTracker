@@ -660,12 +660,19 @@ html, body {
 .modal-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.4); }
 .modal-sheet {
   position: absolute;
-  left: 0; right: 0; bottom: 0;
+  left: 0; right: 0;
+  /* --keyboard-inset (impostata via JS con l'API visualViewport) sposta la
+     sheet sopra la tastiera quando questa è aperta e non ridimensiona il
+     layout viewport (tipico di iOS, specie in PWA) — altrimenti resta 0px e
+     la sheet è ancorata al fondo dello schermo come prima. */
+  bottom: var(--keyboard-inset, 0px);
   background: var(--card-bg);
   border-radius: 18px 18px 0 0;
   padding: 20px 18px calc(20px + env(safe-area-inset-bottom));
   max-width: 560px;
   margin: 0 auto;
+  max-height: 90vh;
+  overflow-y: auto;
 }
 .modal-sheet h3 { margin: 0 0 14px; font-size: 16px; }
 .modal-sheet label {

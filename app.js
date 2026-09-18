@@ -1711,6 +1711,30 @@ function initCollapsibles() {
   });
 }
 
+/**
+ * Su iOS (soprattutto quando l'app è aggiunta alla Home come PWA) l'apertura
+ * della tastiera non ridimensiona il layout viewport come nel normale
+ * scrolling: il "layout viewport" resta invariato e la tastiera si sovrappone
+ * semplicemente al contenuto. I nostri modali sono bottom sheet ancorate con
+ * bottom:0 rispetto a quel layout viewport, quindi appena si apre la
+ * tastiera finiscono nascoste sotto di essa (il campo importo non si vede
+ * più, come segnalato). L'API visualViewport riflette invece la porzione di
+ * schermo davvero visibile (tastiera esclusa): calcoliamo quanto spazio
+ * occupa la tastiera e lo esponiamo come variabile CSS, che .modal-sheet usa
+ * per spostarsi verso l'alto di quella stessa quantità.
+ */
+function initKeyboardInsetTracking() {
+  if (!window.visualViewport) return;
+  const vv = window.visualViewport;
+  function update() {
+    const inset = window.innerHeight - vv.height - vv.offsetTop;
+    document.documentElement.style.setProperty("--keyboard-inset", `${Math.max(inset, 0)}px`);
+  }
+  vv.addEventListener("resize", update);
+  vv.addEventListener("scroll", update);
+  update();
+}
+
 function init() {
   Store.load();
   state.currentMonthKey = monthKey(new Date());
@@ -1729,6 +1753,7 @@ function init() {
   initSettingsHandlers();
   initCollapsibles();
   initAnalisi();
+  initKeyboardInsetTracking();
 
   registerChartRedraw(() => {
     if (state.currentView === "riepilogo") renderRiepilogo();
